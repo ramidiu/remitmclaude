@@ -1,0 +1,67 @@
+<div class="partners-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Payout Routing</h1>
+      <p class="page-subtitle">Assign which payout partner — and therefore which gateway — handles each corridor &amp; delivery method. This is the single source of truth the recipient form, validation and payout all follow.</p>
+    </div>
+    <button class="fb-btn fb-btn--secondary" (click)="load()">
+      <ion-icon name="refresh-outline"></ion-icon>
+      Refresh
+    </button>
+  </div>
+
+  <div class="fb-card table-card">
+    <div *ngIf="loading" class="table-loading">
+      <div class="fb-skeleton fb-skeleton--text" *ngFor="let i of [1,2,3,4,5]"></div>
+    </div>
+
+    <div class="table-wrapper" *ngIf="!loading">
+      <table class="fb-table">
+        <thead>
+          <tr>
+            <th>Corridor</th>
+            <th>Delivery Method</th>
+            <th>Payout Partner</th>
+            <th>Gateway</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of rows">
+            <td class="corridor-cell">
+              <span class="corridor-pair">{{ row.sendCurrency }} → {{ row.receiveCurrency }}</span>
+              <span class="corridor-country">{{ row.receiveCountry }}</span>
+            </td>
+            <td>{{ prettyMethod(row.deliveryMethod) }}</td>
+            <td>
+              <select class="fb-input fb-native-select"
+                      [ngModel]="row.payoutPartnerId"
+                      [disabled]="savingId === row.id"
+                      (ngModelChange)="onAssign(row, $event)">
+                <option [ngValue]="null">— Unassigned (MANUAL) —</option>
+                <option *ngFor="let p of partners" [ngValue]="p.id">{{ p.partnerName }} ({{ p.gateway }})</option>
+              </select>
+            </td>
+            <td>
+              <span class="gateway-pill"
+                    [class.gateway-pill--nsano]="gatewayFor(row.payoutPartnerId) === 'NSANO'"
+                    [class.gateway-pill--zeepay]="gatewayFor(row.payoutPartnerId) === 'ZEEPAY'">
+                {{ gatewayFor(row.payoutPartnerId) }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge" [class.status-badge--active]="row.isActive" [class.status-badge--inactive]="!row.isActive">
+                {{ row.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading && rows.length === 0" class="empty-state">
+      <ion-icon name="git-network-outline"></ion-icon>
+      <p>No corridors configured. Create a corridor first, then route it here.</p>
+    </div>
+  </div>
+</div>

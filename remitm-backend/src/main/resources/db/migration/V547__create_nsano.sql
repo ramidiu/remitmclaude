@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS nsano (
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id       VARCHAR(100) NOT NULL,
+    nsano_transaction_id VARCHAR(100),
+    message              TEXT,
+    code                 VARCHAR(20),
+    status               VARCHAR(30) DEFAULT 'PENDING',
+    api_status           VARCHAR(30) DEFAULT 'notdone',
+    sender_name          VARCHAR(255),
+    recipient_name       VARCHAR(255),
+    sender_account       VARCHAR(100),
+    recipient_account    VARCHAR(100),
+    source_currency      VARCHAR(10),
+    dest_currency        VARCHAR(10),
+    amount               DECIMAL(18,2),
+    rate                 DECIMAL(18,8),
+    created_at           DATETIME,
+    updated_at           DATETIME,
+    INDEX idx_nsano_txn_id (transaction_id),
+    INDEX idx_nsano_nsano_txn_id (nsano_transaction_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

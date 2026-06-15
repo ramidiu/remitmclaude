@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 56" role="img" aria-label="RemitM">
+  <defs>
+    <clipPath id="rmBadgeW"><circle cx="28" cy="28" r="25"/></clipPath>
+  </defs>
+  <!-- Badge: green top stays (reads on dark), bottom rendered light so it lifts off navy -->
+  <g clip-path="url(#rmBadgeW)">
+    <rect x="3" y="3" width="50" height="25" fill="#5DBB52"/>
+    <rect x="3" y="28" width="50" height="25" fill="#ffffff"/>
+    <polyline points="4,25 11,13 18,25 25,13 32,25 39,13 46,25 52,17"
+              fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+    <g fill="#003377">
+      <rect x="9"  y="31" width="2.4" height="19"/>
+      <rect x="16" y="31" width="2.4" height="19"/>
+      <rect x="23" y="31" width="2.4" height="19"/>
+      <rect x="30" y="31" width="2.4" height="19"/>
+      <rect x="37" y="31" width="2.4" height="19"/>
+      <rect x="44" y="31" width="2.4" height="19"/>
+    </g>
+  </g>
+  <circle cx="28" cy="28" r="25" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <text x="64" y="37" font-family="Inter, 'Segoe UI', Roboto, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5" fill="#ffffff">RemitM</text>
+</svg>

@@ -1,0 +1,201 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: remitm-money-transfer
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/remitm?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:mysql}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: false
+    out-of-order: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  mail:
+    host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  async:
+    executor:
+      core-pool-size: 5
+      max-pool-size: 20
+      queue-capacity: 100
+
+app:
+  mfa:
+    enforce-staff: ${MFA_ENFORCE_STAFF:false}
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-token-expiration-ms: 3600000
+    refresh-token-expiration-ms: 604800000
+    mfa-token-expiration-ms: 300000
+  security:
+    max-login-attempts: 5
+    lockout-duration-minutes: 30
+    max-concurrent-sessions: 3
+    password-history-count: 5
+  kyc:
+    upload-dir: ${KYC_UPLOAD_DIR:./kyc-uploads}
+    max-file-size: 10485760
+    max-file-size-mb: 10
+    allowed-extensions: jpg,jpeg,png,pdf
+  # Code added by Naresh: Veriff / Amal / Volume modules removed — related config blocks deleted
+  fx:
+    exchange-rates-api:
+      api-key: ${EXCHANGE_RATES_API_KEY:}
+      base-url: https://v6.exchangerate-api.com/v6
+    rate-fetch-interval-ms: 86400000
+    quote-lock-ttl-seconds: 60
+    cache-ttl-seconds: 300
+    stale-rate-threshold-seconds: 90000
+  compliance:
+    screening-threshold: 85
+    opensanctions:
+      enabled: true
+      batch-size: 500
+      cron: "0 0 3 * * *"
+  notification:
+    email:
+      from: ${NOTIFICATION_EMAIL_FROM:noreply@remitm.com}
+      provider: smtp
+    sms:
+      provider: twilio
+    retry:
+      max-attempts: 3
+      delay-ms: 5000
+  frontend-url: ${FRONTEND_URL:https://remitm.com}
+
+# Email is sent via ClickSend HTTP API (ClickSendEmailSender), ported from the
+# RemitM production app. Defaults below are the RemitM ClickSend account; override
+# via env in production. (A generic SMTP sender also exists — see spring.mail.*.)
+clicksend:
+  url: ${CLICKSEND_URL:https://rest.clicksend.com/v3/email/send}
+  username: ${CLICKSEND_USERNAME:ramidiu@kreativwebsolutions.com}
+  password: "${CLICKSEND_PASSWORD:Ram0001$U}"
+  from:
+    email-address-id: ${CLICKSEND_FROM_ID:25219}
+    name: ${CLICKSEND_FROM_NAME:Remitm}
+
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:}
+  auth-token: ${TWILIO_AUTH_TOKEN:}
+  from-number: ${TWILIO_FROM_NUMBER:}
+
+brand:
+  name: ${BRAND_NAME:Remitm Money Transfer}
+  tagline: ${BRAND_TAGLINE:FAST. SAFE. AFFORDABLE.}
+  address: ${BRAND_ADDRESS:193 Seven Sisters Road, Finsbury Park, London N4 3NG}
+  support-email: ${BRAND_SUPPORT_EMAIL:support@remitm.com}
+  # Hosted https URL for the email logo. Leave blank to derive from app.frontend-url
+  # (<frontend>/assets/images/email-logo.png). NEVER inline as base64 — Gmail strips
+  # data: URIs and a large inline logo breaches Gmail's 102KB clip limit.
+  logo-url: ${BRAND_LOGO_URL:}
+
+remit-one:
+  username: ${REMIT_ONE_USERNAME:}
+  password: ${REMIT_ONE_PASSWORD:}
+  pin: ${REMIT_ONE_PIN:}
+  url: ${REMIT_ONE_URL:https://remitby.remitone.com/universalsecurities/ws/compliance/insertTransactionForCompliance}
+  agent-name: ${REMIT_ONE_AGENT_NAME:Universal Securities}
+  enabled: ${REMIT_ONE_ENABLED:false}
+
+kuber:
+  enabled: ${KUBER_ENABLED:true}
+  baseUrl: ${KUBER_BASE_URL:https://backend.kuberfinancial.com.au/api/payments}
+  merchantId: ${KUBER_MERCHANT_ID:}
+  deviceId: ${KUBER_DEVICE_ID:}
+  connectTimeout: ${KUBER_CONNECT_TIMEOUT_MS:10000}
+  readTimeout: ${KUBER_READ_TIMEOUT_MS:15000}
+
+# Trust Payments server-side verification (TRANSACTIONQUERY via webservices JSON API).
+# OFF by default — needs real Trust webservices credentials (alias + password) to enable.
+# When enabled, the /confirm handler independently verifies the payment outcome.
+trust:
+  webservices:
+    url: ${TRUST_WS_URL:https://webservices.securetrading.net/json/}
+    verify-enabled: ${TRUST_WS_VERIFY_ENABLED:false}
+    alias: ${TRUST_WS_ALIAS:}
+    password: ${TRUST_WS_PASSWORD:}
+    sitereference: ${TRUST_WS_SITEREFERENCE:test_remitm107329}
+
+# Open Banking pay-in via Fire (fire.com) — PIS. Defaults are RemitM pre-prod/test.
+fire:
+  api-base: ${FIRE_API_BASE:https://api-preprod.fire.com}
+  payments-base: ${FIRE_PAYMENTS_BASE:https://payments-preprod.fire.com}
+  client-id: ${FIRE_CLIENT_ID:}
+  refresh-token: ${FIRE_REFRESH_TOKEN:}
+  client-key: ${FIRE_CLIENT_KEY:}
+  ican-to: ${FIRE_ICAN_TO:52363}
+  # Fire requires a valid PUBLIC https return URL (rejects localhost). For local dev the
+  # final redirect lands on this domain; set FIRE_RETURN_URL to your real callback in prod.
+  return-url: ${FIRE_RETURN_URL:https://sendmoney.remitm.com/home/trust-callback}
+
+# Nsano payout (Ghana mobile money / bank). Defaults are RemitM staging/test.
+nsano:
+  base-url: ${NSANO_BASE_URL:https://staging.instantcredit.services}
+  api-key: ${NSANO_API_KEY:}
+  scheduler-enabled: ${NSANO_SCHEDULER_ENABLED:false}
+  status-poll-interval-ms: ${NSANO_STATUS_POLL_INTERVAL_MS:300000}
+
+# Zeepay payout (mobile money / bank / pickup). Bearer JWT supplied via env.
+zeepay:
+  url: ${ZEEPAY_URL:https://shop.digitaltermination.com/}
+  token: ${ZEEPAY_TOKEN:}
+  scheduler-enabled: ${ZEEPAY_SCHEDULER_ENABLED:false}
+  status-poll-interval-ms: ${ZEEPAY_STATUS_POLL_INTERVAL_MS:30000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    mail:
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.remitm: INFO
+    org.springframework.security: WARN

@@ -1,0 +1,34 @@
+import { NgModule } from '@angular/core';
+import { RouterModule, Routes } from '@angular/router';
+import { PayinPartnerLayoutComponent } from './layout/payin-partner-layout.component';
+import { PayinPartnerDashboardPage } from './dashboard/payin-partner-dashboard.page';
+import { PayinPartnerTransactionsPage } from './transactions/payin-partner-transactions.page';
+import { PayinPartnerLedgerPage } from './ledger/payin-partner-ledger.page';
+import { PayinPartnerSettlementsPage } from './settlements/payin-partner-settlements.page';
+import { CreateCustomerPage } from './create-customer/create-customer.page';
+import { PayinPartnerCustomersPage } from './customers/payin-partner-customers.page';
+import { CreateTransactionPage } from './create-transaction/create-transaction.page';
+import { PayinSectionGuard } from '../core/guards/payin-section.guard';
+
+const routes: Routes = [
+  {
+    path: '',
+    component: PayinPartnerLayoutComponent,
+    children: [
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', component: PayinPartnerDashboardPage },
+      { path: 'customers', component: PayinPartnerCustomersPage, canActivate: [PayinSectionGuard], data: { payinRequires: 'customer' } },
+      { path: 'create-customer', component: CreateCustomerPage, canActivate: [PayinSectionGuard], data: { payinRequires: 'customer' } },
+      { path: 'transactions', component: PayinPartnerTransactionsPage, canActivate: [PayinSectionGuard], data: { payinRequires: 'transaction' } },
+      { path: 'create-transaction', component: CreateTransactionPage, canActivate: [PayinSectionGuard], data: { payinRequires: 'transaction' } },
+      { path: 'ledger', component: PayinPartnerLedgerPage },
+      { path: 'settlements', component: PayinPartnerSettlementsPage }
+    ]
+  }
+];
+
+@NgModule({
+  imports: [RouterModule.forChild(routes)],
+  exports: [RouterModule]
+})
+export class PayinPartnerRoutingModule {}

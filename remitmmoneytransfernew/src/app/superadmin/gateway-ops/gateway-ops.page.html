@@ -1,0 +1,110 @@
+<div class="partners-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <span class="gw-dot" [class.gw-dot--nsano]="gateway==='NSANO'" [class.gw-dot--zeepay]="gateway==='ZEEPAY'"></span>
+        {{ title }} Operations
+      </h1>
+      <p class="page-subtitle">All payouts routed through {{ title }} — disburse retries, status and reconciliation. This page only ever acts on {{ title }} transactions.</p>
+    </div>
+    <button class="fb-btn fb-btn--secondary" (click)="load()">
+      <ion-icon name="refresh-outline"></ion-icon>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Summary -->
+  <div class="gw-summary">
+    <div class="gw-stat">
+      <span class="gw-stat__label">Pending</span>
+      <span class="gw-stat__value">{{ summary.pending }}</span>
+    </div>
+    <div class="gw-stat">
+      <span class="gw-stat__label">Paid</span>
+      <span class="gw-stat__value">{{ summary.paid }}</span>
+    </div>
+    <div class="gw-stat">
+      <span class="gw-stat__label">Paid total</span>
+      <span class="gw-stat__value">{{ summary.paidTotalAmount | number:'1.2-2' }}</span>
+    </div>
+    <div class="gw-stat">
+      <span class="gw-stat__label">Cancelled / Failed</span>
+      <span class="gw-stat__value">{{ summary.cancelled }}</span>
+    </div>
+  </div>
+
+  <!-- Scope tabs + search. "All" shows every status (find any transaction's latest status). -->
+  <div class="gw-toolbar">
+    <div class="gw-tabs">
+      <button class="gw-tab" [class.gw-tab--active]="scope==='all'" (click)="setScope('all')">All</button>
+      <button class="gw-tab" [class.gw-tab--active]="scope==='pending'" (click)="setScope('pending')">Pending</button>
+      <button class="gw-tab" [class.gw-tab--active]="scope==='done'" (click)="setScope('done')">Completed</button>
+      <button class="gw-tab" [class.gw-tab--active]="scope==='cancelled'" (click)="setScope('cancelled')">Cancelled / Failed</button>
+    </div>
+    <input class="gw-search" type="text" [(ngModel)]="search" (ngModelChange)="onSearchChange()" placeholder="Search reference or sender…" />
+  </div>
+
+  <div class="fb-card table-card">
+    <div *ngIf="loading" class="table-loading">
+      <div class="fb-skeleton fb-skeleton--text" *ngFor="let i of [1,2,3,4,5]"></div>
+    </div>
+
+    <div class="table-wrapper" *ngIf="!loading">
+      <table class="fb-table">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Beneficiary</th>
+            <th>Amount</th>
+            <th>Method</th>
+            <th>{{ title }} Ref</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of rows">
+            <td class="mono">{{ row.referenceNumber }}</td>
+            <td>{{ row.beneficiaryName || '—' }}</td>
+            <td class="fb-currency">{{ row.receiveAmount | number:'1.2-2' }} {{ row.receiveCurrency }}</td>
+            <td>{{ row.deliveryMethod }}</td>
+            <td class="mono">{{ row.providerRef || '—' }}</td>
+            <td>
+              <span class="status-badge"
+                    [class.status-badge--done]="row.status==='PAID' || row.status==='COMPLETED' || row.status==='ARCHIVED'"
+                    [class.status-badge--bad]="row.status==='CANCELLED' || row.status==='FAILED' || row.status==='REFUNDED'">
+                {{ row.status }}
+              </span>
+            </td>
+            <td>{{ row.createdAt | date:'MMM d, y HH:mm' }}</td>
+            <td>
+              <!-- Action is driven by the row's CURRENT status, so "Check Status" appears for in-flight
+                   payouts in any tab; terminal rows are read-only. -->
+              <button *ngIf="isActionable(row.status)" class="action-btn action-btn--check" (click)="checkStatus(row)" [disabled]="row._busy" [title]="'Get the real status from ' + title">
+                <ion-icon name="sync-outline"></ion-icon>
+                {{ row._busy ? '…' : 'Check Status' }}
+              </button>
+              <span *ngIf="!isActionable(row.status)" class="row-readonly">—</span>
+            </td>
+          </tr>
+          <tr *ngIf="rows.length === 0">
+            <td colspan="8" class="empty-state">
+              <ion-icon name="document-outline"></ion-icon>
+              <p>{{ search ? 'No ' + title + ' transactions match your search.' : 'No ' + title + ' transactions in this view.' }}</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Server-side pagination -->
+      <div class="gw-pager" *ngIf="totalElements > 0">
+        <span class="gw-pager__info">Page {{ page + 1 }} of {{ totalPages }} · {{ totalElements }} transactions</span>
+        <div class="gw-pager__btns">
+          <button class="fb-btn fb-btn--secondary" [disabled]="page === 0" (click)="goPage(-1)">‹ Prev</button>
+          <button class="fb-btn fb-btn--secondary" [disabled]="page + 1 >= totalPages" (click)="goPage(1)">Next ›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

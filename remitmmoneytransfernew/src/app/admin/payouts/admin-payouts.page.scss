@@ -1,0 +1,33 @@
+.ap-page { padding: 24px; max-width: 1100px; }
+.ap-header h1 { font-size: 24px; font-weight: 800; color: #003377; margin: 0 0 4px; }
+.ap-header p { color: #6B7280; font-size: 14px; margin: 0 0 20px; }
+
+.ap-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 20px; }
+@media (max-width: 900px) { .ap-grid { grid-template-columns: 1fr; } }
+
+.ap-card {
+  background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 20px;
+}
+.ap-card__title { font-size: 16px; font-weight: 700; color: #003377; margin: 0 0 16px; }
+
+.ap-field { margin-bottom: 14px; }
+.ap-field--sm { max-width: 130px; }
+.ap-row { display: flex; gap: 12px; }
+.ap-row .ap-field { flex: 1; }
+.ap-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.ap-hint { font-weight: 400; color: #9CA3AF; }
+
+.ap-seg { display: inline-flex; border: 1px solid #D1D5DB; border-radius: 10px; overflow: hidden; }
+.ap-seg__btn {
+  padding: 9px 22px; background: #fff; border: none; cursor: pointer; font-weight: 600; font-size: 14px; color: #374151;
+  &.is-active { background: #003377; color: #fff; }
+}
+
+.ap-actions { display: flex; gap: 12px; margin-top: 8px; }
+
+.ap-out-label { font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: .4px; margin: 6px 0; }
+.ap-out {
+  background: #0b1f3a; color: #d6e4ff; border-radius: 10px; padding: 14px; font-size: 12.5px;
+  white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; margin: 0 0 14px;
+}
+.ap-empty { color: #9CA3AF; font-size: 14px; }

@@ -1,0 +1,81 @@
+@import '../../../theme/remitmai-design-tokens';
+
+.partners-page { max-width: 1200px; }
+
+.page-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: $fb-space-4; margin-bottom: $fb-space-5;
+}
+.page-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: $fb-text-2xl; font-weight: $fb-font-bold; color: $fb-gray-900; margin: 0 0 $fb-space-1;
+}
+.page-subtitle { font-size: $fb-text-sm; color: $fb-gray-500; margin: 0; max-width: 720px; }
+
+.gw-dot {
+  width: 12px; height: 12px; border-radius: 50%; background: #9ca3af; display: inline-block;
+  &--nsano  { background: #4338ca; }
+  &--zeepay { background: #0e7490; }
+}
+
+.gw-summary { display: flex; gap: $fb-space-3; margin-bottom: $fb-space-4; flex-wrap: wrap; }
+.gw-stat {
+  background: #fff; border: 1px solid $fb-gray-200; border-radius: 10px;
+  padding: $fb-space-3 $fb-space-5; min-width: 130px;
+  display: flex; flex-direction: column; gap: 2px;
+  &__label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: $fb-gray-400; }
+  &__value { font-size: $fb-text-xl; font-weight: $fb-font-bold; color: $fb-gray-900; }
+}
+
+.gw-toolbar { display: flex; justify-content: space-between; align-items: center; gap: $fb-space-3; margin-bottom: $fb-space-3; flex-wrap: wrap; }
+.gw-tabs { display: flex; gap: 4px; }
+.gw-tab {
+  border: none; background: $fb-gray-100; color: $fb-gray-600;
+  padding: 7px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;
+  &--active { background: #003377; color: #fff; }
+}
+.gw-search {
+  flex: 0 1 320px; min-width: 200px; padding: 8px 12px; font-size: 13px;
+  border: 1px solid $fb-gray-200; border-radius: 8px; outline: none;
+  &:focus { border-color: #003377; }
+}
+.row-readonly { color: $fb-gray-300; }
+
+.table-card { padding: 0; overflow: hidden; }
+.table-wrapper { overflow-x: auto; }
+.table-loading { padding: $fb-space-6; display: flex; flex-direction: column; gap: $fb-space-3; }
+.mono { font-family: 'SF Mono', Menlo, monospace; font-size: 12px; }
+
+.status-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  background: #eef2ff; color: #4338ca;
+  &--done { background: #ecfdf5; color: #059669; }
+  &--bad  { background: #fef2f2; color: #b91c1c; }
+}
+
+.actions { display: flex; gap: 6px; }
+.action-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px;
+  border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; color: white; transition: opacity .2s;
+  ion-icon { font-size: 14px; }
+  &:hover { opacity: .85; }
+  &:disabled { opacity: .5; cursor: default; }
+  &--primary { background: #003377; }
+  &--success { background: #10B981; }
+  &--check   { background: #0e7490; }
+}
+.done-tick ion-icon { font-size: 20px; color: #10B981; }
+
+.empty-state {
+  text-align: center; padding: $fb-space-10; color: $fb-gray-400;
+  ion-icon { font-size: 40px; display: block; margin: 0 auto $fb-space-2; }
+  p { margin: 0; font-size: $fb-text-sm; }
+}
+
+.gw-pager {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-top: 1px solid #e2e8f0;
+  &__info { font-size: 13px; color: #64748b; }
+  &__btns { display: flex; gap: 8px; }
+}

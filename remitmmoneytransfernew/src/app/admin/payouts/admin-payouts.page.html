@@ -1,0 +1,127 @@
+<div class="ap-page">
+  <div class="ap-header">
+    <h1>Payouts</h1>
+    <p>Manually trigger a recipient payout via Nsano or Zeepay, and check its status.</p>
+  </div>
+
+  <div class="ap-grid">
+    <!-- Form -->
+    <div class="ap-card">
+      <h3 class="ap-card__title">Trigger payout</h3>
+
+      <!-- Provider -->
+      <div class="ap-field">
+        <label class="ap-label">Provider</label>
+        <div class="ap-seg">
+          <button class="ap-seg__btn" [class.is-active]="provider === 'nsano'"
+                  (click)="provider = 'nsano'; onProviderChange()">Nsano</button>
+          <button class="ap-seg__btn" [class.is-active]="provider === 'zeepay'"
+                  (click)="provider = 'zeepay'; onProviderChange()">Zeepay</button>
+        </div>
+      </div>
+
+      <!-- Reference -->
+      <div class="ap-field">
+        <label class="ap-label">Transaction reference *</label>
+        <input class="fb-input" [(ngModel)]="referenceNumber" placeholder="e.g. TXN-2026-XXXX" />
+      </div>
+
+      <!-- Service type -->
+      <div class="ap-field">
+        <label class="ap-label">Service type</label>
+        <select class="fb-input fb-native-select" [(ngModel)]="serviceType">
+          <option value="WALLET">Mobile Money (Wallet)</option>
+          <option value="BANK">Bank Deposit</option>
+          <option *ngIf="provider === 'zeepay'" value="PICKUP">Cash Pickup</option>
+        </select>
+      </div>
+
+      <!-- Recipient name -->
+      <div class="ap-field" *ngIf="provider === 'nsano'">
+        <label class="ap-label">Recipient name</label>
+        <input class="fb-input" [(ngModel)]="recipientName" placeholder="Full name" />
+      </div>
+      <div class="ap-row" *ngIf="provider === 'zeepay'">
+        <div class="ap-field">
+          <label class="ap-label">Recipient first name</label>
+          <input class="fb-input" [(ngModel)]="receiverFirstName" />
+        </div>
+        <div class="ap-field">
+          <label class="ap-label">Recipient last name</label>
+          <input class="fb-input" [(ngModel)]="receiverLastName" />
+        </div>
+      </div>
+
+      <!-- Wallet / Pickup fields -->
+      <div class="ap-row" *ngIf="isWallet || isPickup">
+        <div class="ap-field ap-field--sm">
+          <label class="ap-label">Dialing code</label>
+          <input class="fb-input" [(ngModel)]="dialingCode" placeholder="233" />
+        </div>
+        <div class="ap-field">
+          <label class="ap-label">Mobile number</label>
+          <input class="fb-input" [(ngModel)]="mobileNumber" placeholder="24XXXXXXX" />
+        </div>
+      </div>
+      <div class="ap-field" *ngIf="isWallet">
+        <label class="ap-label">Network / Operator <span class="ap-hint">(MTN, Vodafone, AirtelTigo)</span></label>
+        <input class="fb-input" [(ngModel)]="network" placeholder="MTN" />
+      </div>
+
+      <!-- Bank fields -->
+      <div class="ap-field" *ngIf="isBank">
+        <label class="ap-label">Account number</label>
+        <input class="fb-input" [(ngModel)]="accountNumber" />
+      </div>
+      <div class="ap-field" *ngIf="isBank && provider === 'nsano'">
+        <label class="ap-label">Bank code / SWIFT</label>
+        <input class="fb-input" [(ngModel)]="bankCode" />
+      </div>
+      <div class="ap-field" *ngIf="isBank && provider === 'zeepay'">
+        <label class="ap-label">Routing number</label>
+        <input class="fb-input" [(ngModel)]="routingNumber" />
+      </div>
+
+      <!-- Zeepay extras -->
+      <div class="ap-row" *ngIf="provider === 'zeepay'">
+        <div class="ap-field ap-field--sm">
+          <label class="ap-label">Receiver country</label>
+          <input class="fb-input" [(ngModel)]="receiverCountry" placeholder="GH" />
+        </div>
+        <div class="ap-field">
+          <label class="ap-label">Address</label>
+          <input class="fb-input" [(ngModel)]="address" />
+        </div>
+      </div>
+
+      <!-- Nsano narration -->
+      <div class="ap-field" *ngIf="provider === 'nsano'">
+        <label class="ap-label">Narration</label>
+        <input class="fb-input" [(ngModel)]="narration" placeholder="Payment reason" />
+      </div>
+
+      <div class="ap-actions">
+        <button class="fb-btn fb-btn--primary" (click)="initiate()" [disabled]="submitting">
+          {{ submitting ? 'Sending…' : 'Initiate payout' }}
+        </button>
+        <button class="fb-btn fb-btn--ghost" (click)="checkStatus()" [disabled]="checking">
+          {{ checking ? 'Checking…' : 'Check status' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="ap-card">
+      <h3 class="ap-card__title">Result</h3>
+      <div *ngIf="response">
+        <div class="ap-out-label">Initiate response</div>
+        <pre class="ap-out">{{ pretty(response) }}</pre>
+      </div>
+      <div *ngIf="statusResult">
+        <div class="ap-out-label">Status</div>
+        <pre class="ap-out">{{ pretty(statusResult) }}</pre>
+      </div>
+      <p class="ap-empty" *ngIf="!response && !statusResult">No request sent yet.</p>
+    </div>
+  </div>
+</div>

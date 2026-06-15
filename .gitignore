@@ -1,0 +1,42 @@
+# Dependencies / build output
+node_modules/
+.angular/
+**/dist/
+**/www/
+**/target/
+
+# Binaries & archives (too large for git)
+*.jar
+*.war
+*.tar.gz
+*.tar.gz.bak*
+*.zip
+
+# Large DB dumps / backups
+remitm_backup_*.sql
+*.dump
+
+# Static asset trees (served separately, not source)
+remitm-static/
+**/kyc-uploads*/
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Local env secrets (never commit)
+.env
+*.env.local
+
+# secrets & data dumps — never commit
+.env.production
+*.env.production
+deploy-live/.env*
+backups/
+deploy/remitm.sql
+**/remitm_production.sql*
+*.sql.gz
+PAYMENTS.md
+deploy-live/insert_partner_logins.sql
+deploy-live/backfill_beneficiary_bank.sql

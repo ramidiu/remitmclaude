@@ -1,0 +1,95 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: remitm-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+      MYSQL_DATABASE: remitm
+    ports:
+      - "3310:3306"
+    volumes:
+      - remitm_mysql_data:/var/lib/mysql
+    networks:
+      - remitm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: remitm-redis-new
+    ports:
+      - "6382:6379"
+    volumes:
+      - remitm_redis_data:/data
+    networks:
+      - remitm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: remitmproject-backend:latest
+    container_name: remitm-backend
+    ports:
+      - "8095:8080"
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD:-}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EXCHANGE_RATES_API_KEY=${EXCHANGE_RATES_API_KEY:-}
+      - MAIL_HOST=${MAIL_HOST:-sandbox.smtp.mailtrap.io}
+      - MAIL_PORT=${MAIL_PORT:-2525}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://68.169.59.140:8096}
+      - BRAND_NAME=Remitm Money Transfer
+      - BRAND_SUPPORT_EMAIL=support@remitm.com
+      - KUBER_ENABLED=${KUBER_ENABLED:-false}
+      - REMIT_ONE_ENABLED=true
+      - REMIT_ONE_USERNAME=Abdulazim.mohammed2817
+      - REMIT_ONE_PASSWORD=Aboremitm2007
+      - REMIT_ONE_PIN=12345
+      - REMIT_ONE_AGENT_NAME=Universal Securities
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - remitm-network
+    restart: unless-stopped
+
+  frontend:
+    image: remitmproject-frontend:latest
+    container_name: remitm-frontend-new
+    ports:
+      - "8096:80"
+    depends_on:
+      - backend
+    networks:
+      - remitm-network
+    restart: unless-stopped
+
+volumes:
+  remitm_mysql_data:
+  remitm_redis_data:
+
+networks:
+  remitm-network:
+    driver: bridge

@@ -1,0 +1,198 @@
+<ion-content>
+<div class="rm-landing">
+
+  <!-- ============ NAVBAR ============ -->
+  <header class="rm-nav">
+    <div class="rm-container rm-nav__inner">
+      <a class="rm-nav__brand" href="/">
+        <img src="assets/images/remitm-logo.svg" alt="RemitM" />
+      </a>
+      <nav class="rm-nav__links">
+        <a href="/" class="rm-nav__link is-active">Home</a>
+        <a href="/about-us" class="rm-nav__link">About us</a>
+        <a (click)="scrollTo('how-it-works')" class="rm-nav__link">How it Works</a>
+        <a href="/contact-us" class="rm-nav__link">Contact us</a>
+      </nav>
+      <div class="rm-nav__actions">
+        <a href="/login" class="rm-btn rm-btn--ghost">Log In</a>
+        <a href="/register" class="rm-btn rm-btn--primary">Create Account</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ HERO + RATE CALCULATOR ============ -->
+  <section class="rm-hero" id="rates">
+    <div class="rm-container rm-hero__inner">
+      <div class="rm-hero__copy">
+        <span class="rm-hero__badge">New to RemitM? Your first transaction is FREE</span>
+        <h1 class="rm-hero__title">Send money home,<br>fast and fee-free to start</h1>
+        <p class="rm-hero__sub">
+          Speedy, reliable and cost-effective money transfers from the UK to family,
+          friends and associates abroad — the future of financial transactions, all at your fingertips.
+        </p>
+        <ul class="rm-hero__points">
+          <li><ion-icon name="shield-checkmark"></ion-icon> Safe &amp; secure, FCA-regulated</li>
+          <li><ion-icon name="flash"></ion-icon> Money delivered in minutes</li>
+          <li><ion-icon name="pricetag"></ion-icon> Great rates, low fees</li>
+        </ul>
+        <div class="rm-hero__cta">
+          <a href="/register" class="rm-btn rm-btn--primary rm-btn--lg">Get Started <ion-icon name="arrow-forward"></ion-icon></a>
+          <a (click)="scrollTo('how-it-works')" class="rm-btn rm-btn--outline rm-btn--lg">How it works</a>
+        </div>
+      </div>
+      <div class="rm-hero__calc">
+        <div class="rm-hero__calc-head">
+          <span>Exchange rate calculator</span>
+        </div>
+        <app-fx-calculator></app-fx-calculator>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SEND / RECEIVE ============ -->
+  <section class="rm-sendrecv">
+    <div class="rm-container rm-sendrecv__grid">
+      <div class="rm-sr-card">
+        <div class="rm-sr-card__icon rm-sr-card__icon--green"><ion-icon name="paper-plane"></ion-icon></div>
+        <h3>Send money</h3>
+        <p>The future of financial transactions and many more, all at your fingertips.</p>
+        <a href="/register" class="rm-sr-card__link">Get Started <ion-icon name="arrow-forward"></ion-icon></a>
+      </div>
+      <div class="rm-sr-card">
+        <div class="rm-sr-card__icon rm-sr-card__icon--navy"><ion-icon name="download"></ion-icon></div>
+        <h3>Receive money</h3>
+        <p>The future of financial transactions and many more, all at your fingertips.</p>
+        <a href="/register" class="rm-sr-card__link">Get Started <ion-icon name="arrow-forward"></ion-icon></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DO MORE WITH YOUR MONEY ============ -->
+  <section class="rm-features">
+    <div class="rm-container">
+      <h2 class="rm-section__title">Do more with your money</h2>
+      <p class="rm-section__sub">Choose the delivery method that suits your recipient</p>
+      <div class="rm-features__grid">
+        <div class="rm-feature">
+          <div class="rm-feature__icon"><ion-icon name="business-outline"></ion-icon></div>
+          <h3>Bank Deposit</h3>
+          <p>Send money straight to bank accounts.</p>
+        </div>
+        <div class="rm-feature">
+          <div class="rm-feature__icon"><ion-icon name="cash-outline"></ion-icon></div>
+          <h3>Cash Pickup</h3>
+          <p>Get cash from collection points in minutes.</p>
+        </div>
+        <div class="rm-feature">
+          <div class="rm-feature__icon"><ion-icon name="phone-portrait-outline"></ion-icon></div>
+          <h3>Mobile Money</h3>
+          <p>Transfers made instantly to Mobile Money accounts.</p>
+        </div>
+        <div class="rm-feature">
+          <div class="rm-feature__icon"><ion-icon name="wallet-outline"></ion-icon></div>
+          <h3>Secure Wallet</h3>
+          <p>Transfer money instantly to your secure wallet.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="rm-how" id="how-it-works">
+    <div class="rm-container">
+      <h2 class="rm-section__title">How it Works</h2>
+      <p class="rm-section__sub">Sending money through RemitM is simple, secure and cost-effective — in a few easy steps</p>
+      <div class="rm-how__grid">
+        <div class="rm-how__step">
+          <div class="rm-how__num">1</div>
+          <ion-icon name="person-add-outline"></ion-icon>
+          <h3>Register</h3>
+          <p>Create your free account and verify your identity in minutes.</p>
+        </div>
+        <div class="rm-how__step">
+          <div class="rm-how__num">2</div>
+          <ion-icon name="calculator-outline"></ion-icon>
+          <h3>Get a real-time quote</h3>
+          <p>Pick the country, amount and delivery method and see exactly what your recipient gets.</p>
+        </div>
+        <div class="rm-how__step">
+          <div class="rm-how__num">3</div>
+          <ion-icon name="paper-plane-outline"></ion-icon>
+          <h3>Pay &amp; send</h3>
+          <p>Pay securely by card or bank transfer — your money is on its way.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SUPPORTED COUNTRIES ============ -->
+  <section class="rm-countries" *ngIf="supportedCountries.length > 0">
+    <div class="rm-container">
+      <h2 class="rm-section__title">Where you can send</h2>
+      <p class="rm-section__sub">We support transfers to {{ supportedCountries.length }}+ countries</p>
+      <div class="rm-countries__grid">
+        <div class="rm-country" *ngFor="let country of supportedCountries">
+          <img class="rm-country__flag" [src]="country.code | countryFlagUrl:32" [alt]="country.name" width="32" height="24" loading="lazy" onerror="this.style.display='none'" />
+          <span>{{ country.name }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA STRIP ============ -->
+  <section class="rm-cta">
+    <div class="rm-container rm-cta__inner">
+      <div>
+        <h2>Ready to send your first transfer?</h2>
+        <p>Join thousands who trust RemitM. Your first transaction is free.</p>
+      </div>
+      <a href="/register" class="rm-btn rm-btn--white rm-btn--lg">Create your free account</a>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="rm-footer">
+    <div class="rm-container rm-footer__top">
+      <div class="rm-footer__brand">
+        <img src="assets/images/remitm-logo-white.svg" alt="RemitM" class="rm-footer__logo" />
+        <p>Seamless global transfers you can trust. Remitm Limited is a company registered in England &amp; Wales.</p>
+      </div>
+      <div class="rm-footer__col">
+        <h4>Company</h4>
+        <a href="/about-us">About Us</a>
+        <a (click)="scrollTo('how-it-works')">How it Works</a>
+        <a href="/contact-us">Contact us</a>
+        <a href="/faq">FAQ</a>
+      </div>
+      <div class="rm-footer__col">
+        <h4>Legal</h4>
+        <a href="/privacypolicy">Privacy Policy</a>
+        <a href="/complaints">Complaint Policy</a>
+        <a href="/terms">Terms and Conditions</a>
+        <a href="/terms-of-use">Terms of use</a>
+        <a href="/cookie-policy">Cookies Policy</a>
+        <a href="/money-transfer-policy">Money Transfer Policy</a>
+      </div>
+      <div class="rm-footer__col">
+        <h4>More</h4>
+        <a href="/product-information">Product Information</a>
+        <a href="/disclaimer">Disclaimer</a>
+        <a href="/gdpr-privacy-policy">GDPR / Privacy Policy</a>
+        <a href="/cash-pick-locations">Cash Pick Locations</a>
+        <a href="/contact-us">Contact us</a>
+      </div>
+      <div class="rm-footer__col rm-footer__contact">
+        <h4>Get in touch</h4>
+        <a href="tel:+442085560888"><ion-icon name="call-outline"></ion-icon> 020 8556 0888</a>
+        <a href="mailto:info@remitm.com"><ion-icon name="mail-outline"></ion-icon> info@remitm.com</a>
+        <span><ion-icon name="location-outline"></ion-icon> 20 Kirkdale Road, London, E11 1HP, United Kingdom</span>
+      </div>
+    </div>
+    <div class="rm-container rm-footer__bottom">
+      <span>&copy; {{ year }} Remitm Limited. All rights reserved. Company Registration No. 07956213.</span>
+      <span>www.remitm.com</span>
+    </div>
+  </footer>
+
+</div>
+</ion-content>

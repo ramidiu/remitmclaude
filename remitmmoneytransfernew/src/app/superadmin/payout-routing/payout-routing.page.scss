@@ -1,0 +1,45 @@
+@import '../../../theme/remitmai-design-tokens';
+
+.partners-page { max-width: 1100px; }
+
+.page-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: $fb-space-4; margin-bottom: $fb-space-5;
+}
+.page-title { font-size: $fb-text-2xl; font-weight: $fb-font-bold; color: $fb-gray-900; margin: 0 0 $fb-space-1; }
+.page-subtitle { font-size: $fb-text-sm; color: $fb-gray-500; margin: 0; max-width: 720px; }
+
+.table-card { padding: 0; overflow: hidden; }
+.table-wrapper { overflow-x: auto; }
+.table-loading { padding: $fb-space-6; display: flex; flex-direction: column; gap: $fb-space-3; }
+
+.corridor-cell { display: flex; flex-direction: column; gap: 2px; }
+.corridor-pair { font-weight: $fb-font-semibold; color: $fb-gray-900; }
+.corridor-country { font-size: 11px; color: $fb-gray-400; letter-spacing: 0.03em; }
+
+select.fb-native-select { min-width: 240px; }
+
+.status-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  &--active { background: #ecfdf5; color: #059669; }
+  &--inactive { background: #f3f4f6; color: #6b7280; }
+}
+
+.gateway-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: #f3f4f6;
+  color: #6b7280;
+  &--nsano  { background: #eef2ff; color: #4338ca; }
+  &--zeepay { background: #ecfeff; color: #0e7490; }
+}
+
+.empty-state {
+  text-align: center; padding: $fb-space-10; color: $fb-gray-400;
+  ion-icon { font-size: 48px; display: block; margin: 0 auto $fb-space-3; }
+  p { margin: 0; font-size: $fb-text-sm; }
+}

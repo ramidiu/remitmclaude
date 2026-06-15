@@ -1,0 +1,42 @@
+[Unit]
+Description=Remitm Money Transfer backend
+After=network.target mysqld.service redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/remitm/data
+ExecStart=/usr/bin/java -Xms512m -Xmx2g -jar /opt/remitm/remitm-backend.jar
+Restart=on-failure
+RestartSec=5
+
+Environment=MYSQL_HOST=localhost
+Environment=MYSQL_PORT=3306
+Environment=MYSQL_USER=remitm
+Environment=MYSQL_PASSWORD=LLeopard03%%%%
+Environment=SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/remitm?useSSL=false&serverTimezone=UTC
+
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+
+Environment=JWT_SECRET=REPLACE_WITH_GENERATED_SECRET
+
+Environment=KYC_UPLOAD_DIR=/var/www/remitm/data/kyc-uploads
+
+Environment=BRAND_NAME=Remitm Money Transfer
+Environment=BRAND_SUPPORT_EMAIL=support@remitm.com
+Environment=FRONTEND_URL=http://test.remitm.com
+
+Environment=BREVO_API_KEY=CHANGE_ME_BREVO_KEY
+Environment=BREVO_FROM_NAME=Remitm Money Transfer
+Environment=BREVO_FROM_EMAIL=noreply@remitm.com
+
+Environment=REMIT_ONE_ENABLED=true
+Environment=REMIT_ONE_USERNAME=Abdulazim.mohammed2817
+Environment=REMIT_ONE_PASSWORD=Aboremitm2007
+Environment=REMIT_ONE_PIN=12345
+Environment=REMIT_ONE_AGENT_NAME=Universal Securities
+
+Environment=SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
+[Install]
+WantedBy=multi-user.target

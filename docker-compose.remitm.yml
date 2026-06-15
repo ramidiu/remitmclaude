@@ -1,0 +1,121 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: remitm-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+      MYSQL_DATABASE: remitm
+    ports:
+      - "3310:3306"
+    volumes:
+      - remitm_mysql_data:/var/lib/mysql
+    networks:
+      - remitm-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: remitm-redis-new
+    ports:
+      - "6382:6379"
+    volumes:
+      - remitm_redis_data:/data
+    networks:
+      - remitm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./remitm-backend
+      dockerfile: Dockerfile
+    container_name: remitm-backend
+    ports:
+      - "8095:8080"
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD:-}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EXCHANGE_RATES_API_KEY=${EXCHANGE_RATES_API_KEY:-}
+      - MAIL_HOST=${MAIL_HOST:-sandbox.smtp.mailtrap.io}
+      - MAIL_PORT=${MAIL_PORT:-2525}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER:-}
+      # Public domain — used for email links AND to derive the email logo URL. Must be a
+      # publicly reachable host (NOT localhost) or the logo/links break in delivered mail.
+      - FRONTEND_URL=${FRONTEND_URL:-https://www.remitm.com}
+      - BRAND_NAME=Remitm Money Transfer
+      - BRAND_SUPPORT_EMAIL=support@remitm.com
+      # Optional override for the email logo; blank = derive from FRONTEND_URL (/assets/images/email-logo.png).
+      - BRAND_LOGO_URL=${BRAND_LOGO_URL:-}
+      - KUBER_ENABLED=${KUBER_ENABLED:-false}
+      - FIRE_API_BASE=${FIRE_API_BASE:-https://api.fire.com}
+      - FIRE_PAYMENTS_BASE=${FIRE_PAYMENTS_BASE:-https://payments.fire.com}
+      - FIRE_CLIENT_ID=${FIRE_CLIENT_ID:-}
+      - FIRE_REFRESH_TOKEN=${FIRE_REFRESH_TOKEN:-}
+      - FIRE_CLIENT_KEY=${FIRE_CLIENT_KEY:-}
+      - FIRE_ICAN_TO=${FIRE_ICAN_TO:-52363}
+      # Nsano payout (Ghana) — LIVE creds from laylaremitm (host stream.instantcredit.services).
+      - NSANO_BASE_URL=${NSANO_BASE_URL:-https://stream.instantcredit.services}
+      - NSANO_API_KEY=${NSANO_API_KEY:-}
+      # Zeepay payout — LIVE host + the laylaremitm JWT. NOTE: this JWT expired 2026-05-13;
+      # replace ZEEPAY_TOKEN with a fresh one from Zeepay to disburse successfully.
+      - ZEEPAY_URL=${ZEEPAY_URL:-https://shop.digitaltermination.com/}
+      - ZEEPAY_TOKEN=${ZEEPAY_TOKEN:-}
+      - REMIT_ONE_ENABLED=true
+      - REMIT_ONE_USERNAME=Abdulazim.mohammed2817
+      - REMIT_ONE_PASSWORD=Aboremitm2007
+      - REMIT_ONE_PIN=12345
+      - REMIT_ONE_URL=https://remitby.remitone.com/universalsecurities/ws/compliance/insertTransactionForCompliance
+      - REMIT_ONE_AGENT_NAME=Universal Securities
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - remitm_kyc_uploads:/app/kyc-uploads
+      # - /mnt/c/Users/kreat/claude/remitm-static/images:/app/kyc-uploads/legacy:ro   # temporarily disabled — Docker Desktop bind-mount cache stale
+    networks:
+      - remitm-network
+
+  frontend:
+    build:
+      context: ./remitmmoneytransfernew
+      dockerfile: Dockerfile
+    container_name: remitm-frontend-new
+    ports:
+      - "8096:80"
+    depends_on:
+      - backend
+    networks:
+      - remitm-network
+
+volumes:
+  remitm_mysql_data:
+    external: true
+    name: remitmproject_remitm_mysql_data
+  remitm_redis_data:
+  remitm_kyc_uploads:
+    external: true
+    name: remitmproject_remitm_kyc_uploads
+
+networks:
+  remitm-network:
+    driver: bridge
