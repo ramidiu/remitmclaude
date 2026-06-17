@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * Beneficiary details inline-created from the PayIn Partner create-transaction flow.
- * Mirrors the customer Add Recipient form fields so USI Money has every value it needs
- * when the resulting transaction is later pushed via the USI Money admin page.
+ * Mirrors the customer Add Recipient form fields so the resulting transaction carries
+ * every value the payout partner needs at payout time.
  *
  * Validation is delivery-method-dependent so we don't @NotBlank anything here — the
  * service layer enforces conditional requirements (bank vs mobile vs cash).

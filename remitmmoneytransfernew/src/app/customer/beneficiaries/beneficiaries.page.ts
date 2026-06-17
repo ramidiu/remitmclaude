@@ -55,10 +55,10 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
   bankCodePlaceholder = 'Enter code';
   bankCodeFormat = '';
 
-  // USI Money collection points for the chosen receive country (CASH_PICKUP only).
-  usiCollectionPoints: any[] = [];
-  loadingUsiCollectionPoints = false;
-  selectedUsiCollectionPointCode = '';
+  // Cash-pickup collection points for the chosen receive country (CASH_PICKUP only).
+  cashCollectionPoints: any[] = [];
+  loadingCashCollectionPoints = false;
+  selectedCashCollectionPointCode = '';
 
   // Active receive countries from API
   receiveCountries: { code: string; name: string }[] = [];
@@ -188,7 +188,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
       .pipe(distinctUntilChanged(), takeUntil(this.destroy$))
       .subscribe(method => {
         this.updateDeliveryValidators(method);
-        this.loadUsiCollectionPointsIfNeeded();
+        this.loadCashCollectionPointsIfNeeded();
         const country = this.addForm.get('country')?.value;
         if (!country) return;
         // Resolve the payout gateway for this corridor+method so the form renders the right fields.
@@ -260,7 +260,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
           // for the current delivery method (no-op until method is picked).
           const method = this.addForm.get('deliveryMethod')?.value;
           if (method) { this.updateDeliveryValidators(method); this.loadRoute(country, method); }
-          this.loadUsiCollectionPointsIfNeeded();
+          this.loadCashCollectionPointsIfNeeded();
         }
       });
 
@@ -385,7 +385,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
           this.addForm.patchValue({ deliveryMethod: this.preselectedDeliveryMethod });
         }
         // Ensure collection points load for the preselected corridor (country patched with emitEvent:false).
-        this.loadUsiCollectionPointsIfNeeded();
+        this.loadCashCollectionPointsIfNeeded();
       },
       error: () => { this.availableDeliveryMethods = []; }
     });
@@ -508,7 +508,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     DE: 'DEU', AE: 'ARE', ZA: 'ZAF', UG: 'UGA', TZ: 'TZA', LK: 'LKA'
   };
 
-  /** IBAN-required countries for USI Money corridors + standard SEPA. */
+  /** IBAN-required countries for the payout corridors + standard SEPA. */
   isIbanCountry(country?: string | null): boolean {
     const c = (country || this.addForm.get('country')?.value || '').toString().toUpperCase();
     if (!c) return false;
@@ -519,7 +519,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
 
   /**
    * Countries where no bank identifier (SWIFT/IBAN) is needed at all — server flags this
-   * via country_bank_config.identifier_name='NONE' (currently: Egypt for USI Money).
+   * via country_bank_config.identifier_name='NONE' (currently: Egypt).
    */
   isNoSwiftCountry(): boolean {
     const id = (this.bankConfig?.identifierName || '').toString().toUpperCase();
@@ -676,13 +676,13 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
   }
 
   /** Called when country / delivery-method changes — refreshes the collection-point dropdown. */
-  loadUsiCollectionPointsIfNeeded(): void {
-    this.usiCollectionPoints = [];
-    this.selectedUsiCollectionPointCode = '';
+  loadCashCollectionPointsIfNeeded(): void {
+    this.cashCollectionPoints = [];
+    this.selectedCashCollectionPointCode = '';
     if (this.addForm.value.deliveryMethod !== 'CASH_PICKUP') return;
     const countryCode = (this.addForm.get('country')?.value || '').toString().toUpperCase();
     if (!countryCode) return;
-    this.loadingUsiCollectionPoints = true;
+    this.loadingCashCollectionPoints = true;
     // Cash-pickup collection points come from our own cash_collection_points table.
     this.loadCashPointsFromDb(countryCode);
   }
@@ -692,19 +692,19 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     this.configService.getCashPoints(countryCode).subscribe({
       next: (res: any) => {
         const data: any[] = res?.data || res || [];
-        this.usiCollectionPoints = data.map(p => ({
+        this.cashCollectionPoints = data.map(p => ({
           name: p.pointName, code: p.pointName, address: p.address || '', city: p.city || ''
         }));
-        this.loadingUsiCollectionPoints = false;
+        this.loadingCashCollectionPoints = false;
       },
-      error: () => { this.usiCollectionPoints = []; this.loadingUsiCollectionPoints = false; }
+      error: () => { this.cashCollectionPoints = []; this.loadingCashCollectionPoints = false; }
     });
   }
 
-  /** Auto-fill the cash-collection form fields from the chosen USI collection point. */
-  onUsiCollectionPointPick(code: string): void {
-    this.selectedUsiCollectionPointCode = code;
-    const pt = this.usiCollectionPoints.find(p => p.code === code);
+  /** Auto-fill the cash-collection form fields from the chosen collection point. */
+  onCashCollectionPointPick(code: string): void {
+    this.selectedCashCollectionPointCode = code;
+    const pt = this.cashCollectionPoints.find(p => p.code === code);
     if (!pt) return;
     this.addForm.patchValue({
       bankName:      pt.name,           // Collection Point Name
@@ -714,7 +714,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     });
   }
 
-  /** Countries where USI deals via mobile money (Uganda). */
+  /** Countries where payout is via mobile money (Uganda). */
   isMobileMoneyCountry(country?: string | null): boolean {
     const c = (country || this.addForm.get('country')?.value || '').toString().toUpperCase();
     return c === 'UG' || c === 'UGA' || c.includes('UGANDA');
@@ -759,7 +759,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         this.addForm.get('branchCity')!.setValidators([Validators.required]);
         if (ibanCountry) {
           this.addForm.get('iban')!.setValidators([Validators.required, Validators.minLength(15), Validators.maxLength(34)]);
-          // SWIFT optional in USI IBAN corridors
+          // SWIFT optional in IBAN corridors
         } else if (!this.isNoSwiftCountry()) {
           // Egypt (and any other country flagged identifier_name='NONE') skips SWIFT entirely.
           this.addForm.get('swiftBic')!.setValidators([Validators.required]);
@@ -836,7 +836,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
           this.addForm.patchValue({ deliveryMethod: this.preselectedDeliveryMethod });
         }
         // Ensure collection points load for the preselected corridor (country patched with emitEvent:false).
-        this.loadUsiCollectionPointsIfNeeded();
+        this.loadCashCollectionPointsIfNeeded();
       },
       error: () => { this.availableDeliveryMethods = []; }
     });
@@ -900,7 +900,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
       address: val.address || null,
       relationship: val.relationship || null,
       bankName: val.bankName || null,
-      // For IBAN countries account_number is the IBAN itself (matches USI Money convention)
+      // For IBAN countries account_number is the IBAN itself (IBAN-corridor convention)
       accountNumber: val.accountNumber || val.iban || null,
       iban: val.iban || null,
       swiftBic: val.swiftBic || null,

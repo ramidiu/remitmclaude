@@ -311,7 +311,7 @@ import { environment } from '../../../environments/environment';
               type="button"
               class="ct-pill"
               [class.ct-pill--active]="selectedDeliveryMethod === m.value"
-              (click)="selectedDeliveryMethod = m.value; loadUsiCashPointsIfNeeded(); filterBeneficiaries()"
+              (click)="selectedDeliveryMethod = m.value; loadCashPointsIfNeeded(); filterBeneficiaries()"
             >
               <ion-icon [name]="m.icon"></ion-icon> {{ m.label }}
             </button>
@@ -456,13 +456,13 @@ import { environment } from '../../../environments/environment';
               </div>
               <div class="ct-field">
                 <label>Account Number <span class="ct-req">*</span></label>
-                <input [(ngModel)]="newBen.accountNumber" [placeholder]="isUsiIbanCountry() ? 'Same as IBAN' : 'Bank account number'" />
+                <input [(ngModel)]="newBen.accountNumber" [placeholder]="isIbanCountry() ? 'Same as IBAN' : 'Bank account number'" />
               </div>
-              <div class="ct-field" *ngIf="isUsiIbanCountry()">
+              <div class="ct-field" *ngIf="isIbanCountry()">
                 <label>IBAN <span class="ct-req">*</span></label>
                 <input [(ngModel)]="newBen.iban" placeholder="e.g. AE070331234567890123456" />
               </div>
-              <div class="ct-field" *ngIf="!isUsiIbanCountry() && !isNoSwiftCountry() && !isSudan()">
+              <div class="ct-field" *ngIf="!isIbanCountry() && !isNoSwiftCountry() && !isSudan()">
                 <label>SWIFT / BIC Code <span class="ct-req">*</span></label>
                 <input [(ngModel)]="newBen.swiftBic" placeholder="e.g. CITIUS33" />
               </div>
@@ -494,11 +494,11 @@ import { environment } from '../../../environments/environment';
           <ng-container *ngIf="selectedDeliveryMethod === 'CASH_PICKUP'">
             <h4 class="ct-subsection">Cash Collection Point</h4>
             <div class="ct-form-grid">
-              <div class="ct-field ct-field--full" *ngIf="isUsiCountry() && usiCollectionPoints.length > 0">
-                <label>Collection Point (from USI)</label>
-                <select (change)="applyUsiCashPoint($any($event.target).value)">
+              <div class="ct-field ct-field--full" *ngIf="isCashPickupCountry() && cashCollectionPoints.length > 0">
+                <label>Collection Point</label>
+                <select (change)="applyCashPoint($any($event.target).value)">
                   <option value="">— pick or fill manually —</option>
-                  <option *ngFor="let p of usiCollectionPoints" [value]="p.code">
+                  <option *ngFor="let p of cashCollectionPoints" [value]="p.code">
                     {{ p.name }} — {{ p.city || 'Anywhere' }} ({{ p.code }})
                   </option>
                 </select>
@@ -915,17 +915,17 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
     return this.isSudan() && (this.selectedDeliveryMethod === 'BANK_DEPOSIT' || this.selectedDeliveryMethod === 'BANK_TRANSFER');
   }
 
-  /** Same set of countries USI handles — show IBAN field for these. */
-  isUsiIbanCountry(): boolean {
+  /** Corridor countries that use an IBAN for payout — show IBAN field for these. */
+  isIbanCountry(): boolean {
     const c = (this.receiveCountry || '').toString().toUpperCase();
     return ['TR','TUR','SA','SAU','AE','ARE','QA','QAT'].includes(c);
   }
-  isUsiCountry(): boolean {
+  isCashPickupCountry(): boolean {
     const c = (this.receiveCountry || '').toString().toUpperCase();
     return ['UG','UGA','TR','TUR','EG','EGY','QA','QAT','SA','SAU','AE','ARE'].includes(c);
   }
   isNoSwiftCountry(): boolean {
-    // Uganda + Egypt — USI doesn't require SWIFT for these
+    // Uganda + Egypt — these corridors don't require SWIFT
     const c = (this.receiveCountry || '').toString().toUpperCase();
     return ['UG','UGA','EG','EGY'].includes(c);
   }
@@ -961,7 +961,7 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
 
   /**
    * Loads the active payout types for the current receive currency and filters the
-   * delivery-method pills down to what USI Money / corridors actually support.
+   * delivery-method pills down to what the active corridors actually support.
    * If the previously-selected method is no longer in the list, falls back to the first.
    */
   refreshAvailableDeliveryMethods(): void {
@@ -982,7 +982,7 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
         if (!this.deliveryMethods.find(m => m.value === this.selectedDeliveryMethod)) {
           this.selectedDeliveryMethod = this.deliveryMethods[0].value;
         }
-        this.loadUsiCashPointsIfNeeded();
+        this.loadCashPointsIfNeeded();
       },
       error: () => { this.deliveryMethods = [...this.allDeliveryMethods]; }
     });
@@ -1420,7 +1420,7 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
         this.stepError = 'Bank name and account number are required';
         return;
       }
-      if (this.isUsiIbanCountry() && !this.newBen.iban?.trim()) {
+      if (this.isIbanCountry() && !this.newBen.iban?.trim()) {
         this.stepError = 'IBAN is required for this country';
         return;
       }
@@ -1440,9 +1440,9 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
     this.stepError = '';
   }
 
-  /** Auto-fill cash-collection fields from a USI getCollectionPoints entry. */
-  applyUsiCashPoint(code: string): void {
-    const pt = this.usiCollectionPoints.find(p => p.code === code);
+  /** Auto-fill cash-collection fields from a chosen collection-point entry. */
+  applyCashPoint(code: string): void {
+    const pt = this.cashCollectionPoints.find(p => p.code === code);
     if (!pt) return;
     this.newBen.collectionPointName    = pt.name;
     this.newBen.collectionPointCode    = pt.code;
@@ -1451,9 +1451,9 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
   }
 
   /** Cash-pickup collection points for the chosen corridor (entered manually). */
-  usiCollectionPoints: any[] = [];
-  loadUsiCashPointsIfNeeded(): void {
-    this.usiCollectionPoints = [];
+  cashCollectionPoints: any[] = [];
+  loadCashPointsIfNeeded(): void {
+    this.cashCollectionPoints = [];
   }
 
   goToStep3(): void {
@@ -1490,9 +1490,9 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
     if (this.selectedBeneficiary) {
       payload.beneficiaryId = String(this.selectedBeneficiary.id);
     } else {
-      // Pass through every USI-relevant field so the backend persists them on the new
-      // BeneficiaryEntity (so the USI Money admin "Create on USI" later finds the
-      // complete record without a re-edit).
+      // Pass through every payout-relevant field so the backend persists them on the new
+      // BeneficiaryEntity (so the payout admin later finds the complete record
+      // without a re-edit).
       payload.beneficiaryDetails = {
         name: this.newBen.name?.trim() || '',
         address: this.newBen.address?.trim() || null,
@@ -1500,7 +1500,7 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
 
         // Bank
         bankName: this.newBen.bankName?.trim() || null,
-        sortCode: this.newBen.sortCode?.trim() || null,          // Branch name (USI bank_branch)
+        sortCode: this.newBen.sortCode?.trim() || null,          // Branch name (bank_branch)
         branchState: this.newBen.branchState?.trim() || null,
         branchCity: this.newBen.branchCity?.trim() || null,
         accountNumber: this.newBen.accountNumber?.trim() || this.newBen.iban?.trim() || null,
@@ -1511,7 +1511,7 @@ export class CreateTransactionPage implements OnInit, OnDestroy {
         // Mobile wallet
         mobileProvider: this.newBen.mobileProvider || null,
 
-        // Cash collection — packed into bank fields so USI sees them at txn time
+        // Cash collection — packed into bank fields so the payout partner sees them at txn time
         // (the new BeneficiaryEntity gets bank_name=collectionPointName etc.)
         collectionPointName: this.newBen.collectionPointName?.trim() || null,
         collectionPointCode: this.newBen.collectionPointCode?.trim() || null,

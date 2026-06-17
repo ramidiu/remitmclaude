@@ -188,7 +188,7 @@ public class PayinTransactionServiceImpl implements PayinTransactionService {
                 return;
             }
 
-            // Prefer the mirror created inside createBeneficiary (it has the full USI field
+            // Prefer the mirror created inside createBeneficiary (it has the full payout field
             // set: iban / branch / mobile / address). Only build a stub if no mirror exists
             // (happens when the partner picked an existing beneficiary by id rather than inline-creating).
             BeneficiaryEntity savedBen;
@@ -379,8 +379,8 @@ public class PayinTransactionServiceImpl implements PayinTransactionService {
                 .build();
         PayinBeneficiaryEntity savedPayin = beneficiaryRepository.save(entity);
 
-        // 2) Also save a regular BeneficiaryEntity with the full USI field set so the
-        //    linked transaction (created later) + the USI Money admin page join correctly.
+        // 2) Also save a regular BeneficiaryEntity with the full payout field set so the
+        //    linked transaction (created later) + the payout admin page join correctly.
         try {
             Long senderUserId = userRepository.findByUuid(customerId).map(u -> u.getId()).orElse(null);
             if (senderUserId != null) {

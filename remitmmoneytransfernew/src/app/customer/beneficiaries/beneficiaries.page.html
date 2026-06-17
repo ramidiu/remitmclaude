@@ -229,23 +229,23 @@
           <ng-container *ngIf="addForm.value.deliveryMethod === 'CASH_PICKUP'">
             <div class="fb-field-section-header">{{ 'BENEFICIARIES.CASH_COLLECTION_DETAILS' | translate }}</div>
 
-            <!-- Collection-point dropdown — USI corridors (live) or our DB list (e.g. Sudan).
+            <!-- Collection-point dropdown — populated from our cash_collection_points DB list.
                  Picking a point auto-fills name / code / address / city below. -->
-            <div class="fb-field" *ngIf="usiCollectionPoints.length > 0 || loadingUsiCollectionPoints">
+            <div class="fb-field" *ngIf="cashCollectionPoints.length > 0 || loadingCashCollectionPoints">
               <label class="fb-field__label">Collection Point *</label>
               <select class="fb-input fb-native-select"
-                      [value]="selectedUsiCollectionPointCode"
-                      (change)="onUsiCollectionPointPick($any($event.target).value)">
+                      [value]="selectedCashCollectionPointCode"
+                      (change)="onCashCollectionPointPick($any($event.target).value)">
                 <option value="" disabled>
-                  {{ loadingUsiCollectionPoints ? 'Loading collection points…'
-                       : (usiCollectionPoints.length === 0 ? 'No collection points available — fill in manually below'
+                  {{ loadingCashCollectionPoints ? 'Loading collection points…'
+                       : (cashCollectionPoints.length === 0 ? 'No collection points available — fill in manually below'
                                                            : 'Select a collection point') }}
                 </option>
-                <option *ngFor="let p of usiCollectionPoints" [value]="p.code">
+                <option *ngFor="let p of cashCollectionPoints" [value]="p.code">
                   {{ p.name }} — {{ p.city || 'Anywhere' }} ({{ p.code }})
                 </option>
               </select>
-              <div class="fb-field__hint" *ngIf="usiCollectionPoints.length > 0">
+              <div class="fb-field__hint" *ngIf="cashCollectionPoints.length > 0">
                 Selecting a point fills in name, code, address and city automatically.
               </div>
             </div>

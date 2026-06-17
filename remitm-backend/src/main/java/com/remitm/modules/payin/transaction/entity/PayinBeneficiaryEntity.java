@@ -32,7 +32,7 @@ public class PayinBeneficiaryEntity {
     @Column(name = "ifsc_code", length = 20)
     private String ifscCode;
 
-    /** Mirrored regular beneficiaries.id so the USI Money admin join works. */
+    /** Mirrored regular beneficiaries.id so the payout admin join works. */
     @Column(name = "linked_regular_beneficiary_id")
     private Long linkedRegularBeneficiaryId;
 

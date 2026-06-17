@@ -19,7 +19,7 @@ public class TransactionResponse {
 
     private Long id;
     private String referenceNumber;
-    /** Payout-side reference assigned by the partner (e.g. USI Money). */
+    /** Payout-side reference assigned by the payout partner. */
     private String payoutReference;
     private String senderName;
     private String beneficiaryName;
