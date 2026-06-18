@@ -38,8 +38,8 @@ public class CorridorAutoCreateService {
             return null;
         }
 
-        // Check if corridor already exists
-        Optional<CorridorEntity> existing = corridorRepository.findBySendCurrencyAndReceiveCurrency(
+        // Check if corridor already exists (deterministic — currencies may be shared by countries)
+        Optional<CorridorEntity> existing = corridorRepository.findFirstBySendCurrencyAndReceiveCurrencyOrderByIdAsc(
                 sendCurrency, receiveCurrency);
         if (existing.isPresent()) {
             log.debug("Corridor already exists for {}/{}: id={}", sendCurrency, receiveCurrency,

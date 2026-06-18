@@ -42,6 +42,12 @@ public class PendingTransactionArchiveScheduler {
         log.info("Archiving {} transaction(s) pending for more than {} hours", stale.size(), STALE_PENDING_HOURS);
         for (TransactionEntity tx : stale) {
             try {
+                // Never archive migrated historical transactions — they were imported from the
+                // legacy system with their real (often years-old) PENDING status and must stay
+                // visible in the customer's history. Only genuine NEW stuck payouts get archived.
+                if (tx.getNotes() != null && tx.getNotes().contains("Migrated from remitm_old")) {
+                    continue;
+                }
                 tx.setStatus(TransactionStatus.ARCHIVED);
                 tx.setUpdatedAt(LocalDateTime.now());
                 transactionRepository.save(tx);

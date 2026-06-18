@@ -32,7 +32,7 @@ public class LookupController {
     public ResponseEntity<ApiResponse<List<MobileMoneyService>>> getMobileServices(
             @RequestParam String countryCode) {
         List<MobileMoneyService> services = mobileMoneyServiceRepository
-                .findByCountryCodeAndIsActive(countryCode, true);
+                .findByCountryCodeAndIsActive(com.remitm.common.util.CountryCodes.toAlpha2(countryCode), true);
         return ResponseEntity.ok(ApiResponse.<List<MobileMoneyService>>builder()
                 .success(true)
                 .data(services)
@@ -44,7 +44,7 @@ public class LookupController {
     public ResponseEntity<ApiResponse<List<CashCollectionPoint>>> getCashPoints(
             @RequestParam String countryCode) {
         List<CashCollectionPoint> points = cashCollectionPointRepository
-                .findByCountryCodeAndIsActive(countryCode, true);
+                .findByCountryCodeAndIsActive(com.remitm.common.util.CountryCodes.toAlpha2(countryCode), true);
         return ResponseEntity.ok(ApiResponse.<List<CashCollectionPoint>>builder()
                 .success(true)
                 .data(points)

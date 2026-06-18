@@ -155,8 +155,9 @@ BEGIN
             WHEN 'CLOSED'    THEN 'CLOSED'
             ELSE 'ACTIVE'
         END,
-        -- Email verified: treat 'yes','1','true','verified' as verified
-        CASE WHEN LOWER(TRIM(COALESCE(u.EMAIL_VERIFIED, ''))) IN ('yes','1','true','verified') THEN 1 ELSE 0 END,
+        -- Migrated customers are established legacy accounts → pre-verified, so the new
+        -- login flow does NOT force them through email OTP (legacy never email-OTP'd them).
+        1,
         -- User type: user_type_id 3 = CUSTOMER → INDIVIDUAL; all others treated as INDIVIDUAL
         'INDIVIDUAL',
         -- KYC tier: set to TIER_0 now, updated in Phase 5
@@ -987,6 +988,37 @@ BEGIN
         failed
     FROM remitm.migration_summary
     ORDER BY run_at;
+
+    -- =========================================================================
+    -- PHASE 9 — assign the CUSTOMER role to every user that has none.
+    -- Migrated users were imported without a user_roles row, which left them with
+    -- no permissions (e.g. 'transaction:create') → "Access Denied" on Send Money.
+    -- Idempotent: only role-less users are touched.
+    -- =========================================================================
+    SET v_phase = 'PHASE_9_USER_ROLES';
+    INSERT INTO remitm.user_roles (user_id, role_id)
+    SELECT u.id, (SELECT id FROM remitm.roles WHERE name = 'CUSTOMER' LIMIT 1)
+    FROM remitm.users u
+    WHERE EXISTS (SELECT 1 FROM remitm.roles WHERE name = 'CUSTOMER')
+      AND NOT EXISTS (SELECT 1 FROM remitm.user_roles ur WHERE ur.user_id = u.id);
+
+    -- =========================================================================
+    -- PHASE 10 — set kyc_tier from APPROVED documents (the import marks docs
+    -- APPROVED but leaves kyc_tier at TIER_0, which blocks Send Money even for a
+    -- verified ID). Mirrors KycTierEvaluator. Only upgrades TIER_0 users.
+    -- =========================================================================
+    SET v_phase = 'PHASE_10_KYC_TIER';
+    UPDATE remitm.users u
+    SET u.kyc_tier = CASE
+        WHEN EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type IN ('PASSPORT','DRIVING_LICENCE','NATIONAL_ID'))
+         AND EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type = 'PROOF_OF_ADDRESS')
+         AND EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type = 'SOURCE_OF_FUNDS') THEN 'TIER_3'
+        WHEN EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type IN ('PASSPORT','DRIVING_LICENCE','NATIONAL_ID'))
+         AND EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type = 'PROOF_OF_ADDRESS') THEN 'TIER_2'
+        WHEN EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type IN ('PASSPORT','DRIVING_LICENCE','NATIONAL_ID')) THEN 'TIER_1'
+        ELSE u.kyc_tier END
+    WHERE u.kyc_tier = 'TIER_0'
+      AND EXISTS (SELECT 1 FROM remitm.kyc_documents d WHERE d.user_id = u.id AND d.status = 'APPROVED' AND d.document_type IN ('PASSPORT','DRIVING_LICENCE','NATIONAL_ID'));
 
     -- =========================================================================
     -- COMMIT or ROLLBACK based on dry_run flag

@@ -73,16 +73,21 @@ public class AuthEmailService {
                 : (frontendUrl == null || frontendUrl.isBlank()
                         ? ""
                         : frontendUrl.replaceAll("/+$", "") + "/assets/images/email-logo.png");
-        String logoBlock = logoUrl.isEmpty()
-                ? "<span style=\"color:#ffffff;font-size:22px;font-weight:700;letter-spacing:.5px;\">" + brandName + "</span>"
-                : "<img src=\"" + logoUrl + "\" alt=\"" + brandName + "\" style=\"max-width:180px;height:auto;margin:0 auto;display:block;\" />";
+        // The logo PNG is the badge only (no wordmark), so we pair it with the "RemitM" wordmark
+        // (navy "Remit" + green "M") on a white header — badge alone left the header looking empty.
+        String badge = logoUrl.isEmpty()
+                ? ""
+                : "<img src=\"" + logoUrl + "\" alt=\"" + brandName + "\" style=\"height:44px;width:auto;vertical-align:middle;display:inline-block;\" />";
+        String wordmark = "<span style=\"vertical-align:middle;display:inline-block;margin-left:12px;"
+                + "font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:800;letter-spacing:.3px;color:#003377;\">"
+                + "Remit<span style=\"color:#5DBB52;\">M</span></span>";
         return """
                 <tr>
-                    <td style="background-color:#003377;padding:28px 30px;text-align:center;border-radius:12px 12px 0 0;">
-                        %s
+                    <td style="background-color:#ffffff;padding:26px 30px;text-align:center;border-radius:12px 12px 0 0;border-bottom:1px solid #e2e8f0;">
+                        %s%s
                     </td>
                 </tr>
-                """.formatted(logoBlock);
+                """.formatted(badge, wordmark);
     }
 
     private String brandFooter() {

@@ -169,12 +169,11 @@ public class PayinTransactionServiceImpl implements PayinTransactionService {
             String receiveCurrency = payinTxn.getReceiveCurrency();
             if (receiveCurrency == null) return;
 
-            // Resolve corridor
+            // Resolve corridor — deterministic (lowest id) so currencies shared by multiple
+            // countries (XOF/XAF) don't throw NonUniqueResult.
             CorridorEntity corridor = corridorRepository
-                    .findBySendCurrencyAndReceiveCurrencyAndIsActiveTrue(sendCurrency, receiveCurrency)
-                    .orElseGet(() -> corridorRepository
-                            .findBySendCurrencyAndReceiveCurrency(sendCurrency, receiveCurrency)
-                            .orElse(null));
+                    .findFirstBySendCurrencyAndReceiveCurrencyAndIsActiveTrueOrderByIdAsc(sendCurrency, receiveCurrency)
+                    .orElse(null);
             if (corridor == null) {
                 log.warn("No corridor found for {}->{}, skipping linked transaction", sendCurrency, receiveCurrency);
                 return;

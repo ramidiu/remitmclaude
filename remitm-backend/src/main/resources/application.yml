@@ -167,14 +167,14 @@ fire:
 nsano:
   base-url: ${NSANO_BASE_URL:https://staging.instantcredit.services}
   api-key: ${NSANO_API_KEY:}
-  scheduler-enabled: ${NSANO_SCHEDULER_ENABLED:false}
+  scheduler-enabled: ${NSANO_SCHEDULER_ENABLED:true}
   status-poll-interval-ms: ${NSANO_STATUS_POLL_INTERVAL_MS:300000}
 
 # Zeepay payout (mobile money / bank / pickup). Bearer JWT supplied via env.
 zeepay:
   url: ${ZEEPAY_URL:https://shop.digitaltermination.com/}
   token: ${ZEEPAY_TOKEN:}
-  scheduler-enabled: ${ZEEPAY_SCHEDULER_ENABLED:false}
+  scheduler-enabled: ${ZEEPAY_SCHEDULER_ENABLED:true}
   status-poll-interval-ms: ${ZEEPAY_STATUS_POLL_INTERVAL_MS:30000}
 
 management:

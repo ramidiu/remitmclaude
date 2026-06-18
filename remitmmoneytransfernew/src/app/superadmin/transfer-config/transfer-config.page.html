@@ -111,8 +111,10 @@
     <div class="ccp-add">
       <h3>Add Collection Point</h3>
       <div class="ccp-grid">
-        <input [(ngModel)]="newPoint.countryCode" placeholder="Country code (e.g. SD)" maxlength="3" />
-        <input [(ngModel)]="newPoint.countryName" placeholder="Country name (e.g. Sudan)" />
+        <select class="ccp-select" [ngModel]="newPoint.countryCode" (ngModelChange)="onPointCountrySelect($event)">
+          <option value="" disabled>Select country (active only)</option>
+          <option *ngFor="let c of activeCountriesForPoints" [value]="c.countryCode">{{ c.countryName }} ({{ c.countryCode }})</option>
+        </select>
         <input [(ngModel)]="newPoint.pointName" placeholder="Point name (e.g. Bank of Khartoum - Main)" />
         <input [(ngModel)]="newPoint.city" placeholder="City" />
         <input [(ngModel)]="newPoint.address" placeholder="Address" />

@@ -9,7 +9,7 @@
 
 set -e
 
-SQL_FILE="/mnt/c/Users/kreat/Downloads/remitm1 (1).sql"
+SQL_FILE="/mnt/c/Users/umesh/Downloads/remitm1.sql"
 CONTAINER="remitm-mysql"
 DB_OLD="remitm_old"
 MYSQL_USER="root"

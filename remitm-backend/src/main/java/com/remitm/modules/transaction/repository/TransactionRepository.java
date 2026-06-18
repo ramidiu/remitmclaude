@@ -46,18 +46,24 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
     // "All" tab — every status for the gateway (so the admin sees any transaction's latest status).
     List<TransactionEntity> findByPayoutGatewayOrderByCreatedAtDesc(String payoutGateway);
 
-    // ---- Gateway Operations: server-side pagination + search (reference / sender) ----
+    // ---- Gateway Operations: server-side pagination + search (reference / sender) + date range ----
     @Query("SELECT t FROM TransactionEntity t WHERE t.payoutGateway = :gw " +
            "AND (:q IS NULL OR LOWER(t.referenceNumber) LIKE LOWER(CONCAT('%', :q, '%')) " +
-           "     OR LOWER(t.senderName) LIKE LOWER(CONCAT('%', :q, '%')))")
-    Page<TransactionEntity> pageGatewayAll(@Param("gw") String gw, @Param("q") String q, Pageable pageable);
+           "     OR LOWER(t.senderName) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+           "AND (:from IS NULL OR t.createdAt >= :from) AND (:to IS NULL OR t.createdAt <= :to)")
+    Page<TransactionEntity> pageGatewayAll(@Param("gw") String gw, @Param("q") String q,
+                                           @Param("from") java.time.LocalDateTime from,
+                                           @Param("to") java.time.LocalDateTime to, Pageable pageable);
 
     @Query("SELECT t FROM TransactionEntity t WHERE t.payoutGateway = :gw AND t.status IN :statuses " +
            "AND (:q IS NULL OR LOWER(t.referenceNumber) LIKE LOWER(CONCAT('%', :q, '%')) " +
-           "     OR LOWER(t.senderName) LIKE LOWER(CONCAT('%', :q, '%')))")
+           "     OR LOWER(t.senderName) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+           "AND (:from IS NULL OR t.createdAt >= :from) AND (:to IS NULL OR t.createdAt <= :to)")
     Page<TransactionEntity> pageGatewayScoped(@Param("gw") String gw,
                                               @Param("statuses") java.util.Collection<TransactionStatus> statuses,
-                                              @Param("q") String q, Pageable pageable);
+                                              @Param("q") String q,
+                                              @Param("from") java.time.LocalDateTime from,
+                                              @Param("to") java.time.LocalDateTime to, Pageable pageable);
 
     @Query("SELECT COALESCE(SUM(t.receiveAmount), 0) FROM TransactionEntity t " +
            "WHERE t.payoutGateway = :gw AND t.status IN :statuses")

@@ -36,8 +36,11 @@ import java.util.*;
 @Slf4j
 public class GatewayOpsController {
 
+    // Pending = anything still in flight (not yet paid/cancelled). Includes CREATED and PENDING —
+    // a freshly-created payout sits in PENDING, so it MUST appear in the Pending tab/count.
     private static final List<TransactionStatus> PENDING = List.of(
-            TransactionStatus.PROCESSING, TransactionStatus.FUNDS_RECEIVED, TransactionStatus.SENT_TO_PAYOUT);
+            TransactionStatus.CREATED, TransactionStatus.PENDING, TransactionStatus.PROCESSING,
+            TransactionStatus.FUNDS_RECEIVED, TransactionStatus.SENT_TO_PAYOUT);
     // Completed view includes ARCHIVED so historical/dumped payouts (the migrated ones) show too.
     private static final List<TransactionStatus> DONE = List.of(
             TransactionStatus.PAID, TransactionStatus.COMPLETED, TransactionStatus.ARCHIVED);
@@ -59,21 +62,25 @@ public class GatewayOpsController {
                                                      @RequestParam(defaultValue = "all") String scope,
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "25") int size,
-                                                     @RequestParam(required = false) String search) {
+                                                     @RequestParam(required = false) String search,
+                                                     @RequestParam(required = false) String from,
+                                                     @RequestParam(required = false) String to) {
         String gw = gateway.toUpperCase();
         String q = (search != null && !search.isBlank()) ? search.trim() : null;   // null => no filter
+        java.time.LocalDateTime fromDt = parseFrom(from);
+        java.time.LocalDateTime toDt = parseTo(to);
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200),
                 Sort.by("createdAt").descending());
 
         // "all" = every status (find any transaction's latest status); else status-bucketed.
         Page<TransactionEntity> pageData;
         if ("all".equalsIgnoreCase(scope)) {
-            pageData = transactionRepository.pageGatewayAll(gw, q, pageable);
+            pageData = transactionRepository.pageGatewayAll(gw, q, fromDt, toDt, pageable);
         } else {
             List<TransactionStatus> wanted = "done".equalsIgnoreCase(scope) ? DONE
                     : "cancelled".equalsIgnoreCase(scope) ? CANCELLED
                     : PENDING;
-            pageData = transactionRepository.pageGatewayScoped(gw, wanted, q, pageable);
+            pageData = transactionRepository.pageGatewayScoped(gw, wanted, q, fromDt, toDt, pageable);
         }
 
         // Summary from COUNT/SUM queries (cheap, accurate, independent of pagination).
@@ -93,6 +100,48 @@ public class GatewayOpsController {
         body.put("totalElements", pageData.getTotalElements());
         body.put("totalPages", pageData.getTotalPages());
         return ResponseEntity.ok(body);
+    }
+
+    /** Download the current view (gateway + scope + date range + search) as CSV. */
+    @GetMapping("/{gateway}/export")
+    public ResponseEntity<byte[]> exportCsv(@PathVariable String gateway,
+                                            @RequestParam(defaultValue = "all") String scope,
+                                            @RequestParam(required = false) String search,
+                                            @RequestParam(required = false) String from,
+                                            @RequestParam(required = false) String to) {
+        String gw = gateway.toUpperCase();
+        String q = (search != null && !search.isBlank()) ? search.trim() : null;
+        java.time.LocalDateTime fromDt = parseFrom(from);
+        java.time.LocalDateTime toDt = parseTo(to);
+        Pageable big = PageRequest.of(0, 50000, Sort.by("createdAt").descending());
+
+        Page<TransactionEntity> data;
+        if ("all".equalsIgnoreCase(scope)) {
+            data = transactionRepository.pageGatewayAll(gw, q, fromDt, toDt, big);
+        } else {
+            List<TransactionStatus> wanted = "done".equalsIgnoreCase(scope) ? DONE
+                    : "cancelled".equalsIgnoreCase(scope) ? CANCELLED : PENDING;
+            data = transactionRepository.pageGatewayScoped(gw, wanted, q, fromDt, toDt, big);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Reference,Beneficiary,Amount,Currency,Method,Provider Ref,Status,Created\n");
+        for (TransactionEntity t : data.getContent()) {
+            Map<String, Object> m = enrich(t, gw);
+            sb.append(csv(m.get("referenceNumber"))).append(',')
+              .append(csv(m.get("beneficiaryName"))).append(',')
+              .append(csv(m.get("receiveAmount"))).append(',')
+              .append(csv(m.get("receiveCurrency"))).append(',')
+              .append(csv(m.get("deliveryMethod"))).append(',')
+              .append(csv(m.get("providerRef"))).append(',')
+              .append(csv(m.get("status"))).append(',')
+              .append(csv(m.get("createdAt"))).append('\n');
+        }
+        String filename = gw.toLowerCase() + "-" + scope + "-transactions.csv";
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                .header("Content-Type", "text/csv")
+                .body(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     /**
@@ -178,5 +227,21 @@ public class GatewayOpsController {
         }
         m.put("providerRef", providerRef);
         return m;
+    }
+
+    // ---- helpers ----
+    private static java.time.LocalDateTime parseFrom(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { return java.time.LocalDate.parse(s.trim()).atStartOfDay(); } catch (Exception e) { return null; }
+    }
+    private static java.time.LocalDateTime parseTo(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { return java.time.LocalDate.parse(s.trim()).atTime(23, 59, 59); } catch (Exception e) { return null; }
+    }
+    private static String csv(Object v) {
+        if (v == null) return "";
+        String s = String.valueOf(v);
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) s = "\"" + s.replace("\"", "\"\"") + "\"";
+        return s;
     }
 }

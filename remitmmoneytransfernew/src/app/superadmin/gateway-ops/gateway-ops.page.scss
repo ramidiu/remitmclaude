@@ -79,3 +79,15 @@
   &__info { font-size: 13px; color: #64748b; }
   &__btns { display: flex; gap: 8px; }
 }
+
+/* Date range + CSV export toolbar */
+.gw-toolbar--filters { margin-top: 8px; align-items: center; }
+.gw-daterange { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.gw-daterange label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #475569; }
+.gw-daterange input[type="date"] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+.gw-export-btn {
+  display: inline-flex; gap: 6px; align-items: center; margin-left: auto;
+  padding: 8px 14px; border: 1px solid #003377; background: #003377; color: #fff;
+  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.gw-export-btn:disabled { opacity: .6; cursor: default; }

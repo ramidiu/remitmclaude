@@ -126,6 +126,7 @@ public class TransactionService {
     private final BeneficiaryRepository beneficiaryRepository;
     private final CorridorPartnerMappingRepository corridorPartnerMappingRepository;
     private final CorridorFeeConfigRepository corridorFeeConfigRepository;
+    private final com.remitm.modules.fx.repository.CorridorRepository corridorRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final TransactionStateMachine stateMachine;
     private final RedisPublisher redisPublisher;
@@ -319,49 +320,57 @@ public class TransactionService {
         // Generate reference number
         String referenceNumber = ReferenceNumberGenerator.generate();
 
-        // Auto-assign payout partner from corridor-partner mapping
-        Long payoutPartnerId = null;
         String sendCurrency = request.getSendCurrency();
-        // Determine receive currency from quote or corridor
-        String receiveCurrency = null;
-        if (quote.getReceiveAmount() != null) {
-            // Try to get from corridor
-            receiveCurrency = beneficiary.getCountry() != null ? getCurrencyForCountry(beneficiary.getCountry()) : null;
-        }
-        if (receiveCurrency == null && request.getCorridorId() != null) {
-            receiveCurrency = sendCurrency; // fallback, will be overridden
+        String methodName = request.getDeliveryMethod() != null ? request.getDeliveryMethod().name() : null;
+
+        // Resolve the chosen corridor (country-specific) — the source of truth for receive
+        // currency, receive country and routing. A corridor is country-specific, so this is
+        // unambiguous even when several countries share a currency (XOF, XAF).
+        com.remitm.modules.fx.entity.CorridorEntity corridor = request.getCorridorId() != null
+                ? corridorRepository.findById(request.getCorridorId()).orElse(null) : null;
+
+        String receiveCurrency = corridor != null ? corridor.getReceiveCurrency()
+                : (beneficiary.getCountry() != null ? getCurrencyForCountry(beneficiary.getCountry()) : null);
+        String receiveCountry = corridor != null ? corridor.getReceiveCountry() : null;
+        if (receiveCurrency == null) {
+            receiveCurrency = sendCurrency; // last-resort fallback
         }
 
-        // Lookup corridor-partner mapping
-        if (sendCurrency != null && receiveCurrency != null) {
-            List<CorridorPartnerMapping> mappings = corridorPartnerMappingRepository
-                    .findByFromCurrencyAndToCurrency(sendCurrency, receiveCurrency);
-            if (!mappings.isEmpty()) {
-                CorridorPartnerMapping activeMapping = mappings.stream()
-                        .filter(m -> Boolean.TRUE.equals(m.getIsActive()))
-                        .findFirst()
-                        .orElse(null);
-                if (activeMapping != null) {
-                    payoutPartnerId = activeMapping.getPartnerId();
-                    log.info("Auto-assigned payout partner {} for corridor {}->{}", payoutPartnerId, sendCurrency, receiveCurrency);
-                }
-            }
+        // Country-aware payout routing → gateway + partner. Prefer the exact corridor.
+        com.remitm.modules.payout.gateway.PayoutRoute payoutRoute = corridor != null
+                ? payoutRoutingService.resolveByCorridor(corridor.getId(), methodName)
+                : payoutRoutingService.resolve(receiveCountry, receiveCurrency, methodName);
+        String payoutGateway = payoutRoute.getGateway();
+
+        // Payout partner: prefer the routed partner; else fall back to a (country-scoped) mapping.
+        Long payoutPartnerId = payoutRoute.getPayoutPartnerId();
+        if (payoutPartnerId == null && sendCurrency != null && receiveCurrency != null) {
+            List<CorridorPartnerMapping> mappings = receiveCountry != null
+                    ? corridorPartnerMappingRepository.findByFromCurrencyAndToCurrencyAndReceiveCountry(sendCurrency, receiveCurrency, receiveCountry)
+                    : corridorPartnerMappingRepository.findByFromCurrencyAndToCurrency(sendCurrency, receiveCurrency);
+            payoutPartnerId = mappings.stream()
+                    .filter(m -> Boolean.TRUE.equals(m.getIsActive()))
+                    .map(CorridorPartnerMapping::getPartnerId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (payoutPartnerId != null) {
+            log.info("Auto-assigned payout partner {} for corridor {}->{} ({})", payoutPartnerId, sendCurrency, receiveCurrency, receiveCountry);
         }
 
-        // Auto-assign pay-in partner from CorridorFeeConfig (same config the admin sets
-        // per corridor in the "Corridor Management" screen). Null = no pay-in partner
-        // configured → admin handles pay-in.
+        // Auto-assign pay-in partner from CorridorFeeConfig (country-scoped). Null = admin handles pay-in.
         Long payinPartnerId = null;
         if (sendCurrency != null && receiveCurrency != null) {
-            List<CorridorFeeConfig> feeConfigs = corridorFeeConfigRepository
-                    .findByFromCurrencyAndToCurrency(sendCurrency, receiveCurrency);
+            List<CorridorFeeConfig> feeConfigs = receiveCountry != null
+                    ? corridorFeeConfigRepository.findByFromCurrencyAndToCurrencyAndReceiveCountry(sendCurrency, receiveCurrency, receiveCountry)
+                    : corridorFeeConfigRepository.findByFromCurrencyAndToCurrency(sendCurrency, receiveCurrency);
             payinPartnerId = feeConfigs.stream()
                     .map(CorridorFeeConfig::getPayinPartnerId)
                     .filter(Objects::nonNull)
                     .findFirst()
                     .orElse(null);
             if (payinPartnerId != null) {
-                log.info("Auto-assigned payin partner {} for corridor {}->{}", payinPartnerId, sendCurrency, receiveCurrency);
+                log.info("Auto-assigned payin partner {} for corridor {}->{} ({})", payinPartnerId, sendCurrency, receiveCurrency, receiveCountry);
             }
         }
 
@@ -390,10 +399,7 @@ public class TransactionService {
                 .totalDebitAmount(quote.getTotalCost() != null ? quote.getTotalCost() : request.getSendAmount())
                 .paymentMethodType(request.getPaymentMethodType())
                 .payoutPartnerId(payoutPartnerId)
-                .payoutGateway(payoutRoutingService.resolve(
-                        receiveCurrency != null ? receiveCurrency : request.getSendCurrency(),
-                        request.getDeliveryMethod() != null ? request.getDeliveryMethod().name() : null
-                ).getGateway())
+                .payoutGateway(payoutGateway)
                 .payinPartnerId(payinPartnerId)
                 .isRecurring(false)
                 .notes(request.getNotes())

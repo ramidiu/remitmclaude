@@ -42,6 +42,20 @@ export class TransferConfigPage implements OnInit {
 
   // --- Cash collection points ---
 
+  /** Active payout countries (enabled in Transfer Config) — drives the Add-Collection-Point dropdown. */
+  get activeCountriesForPoints(): { countryCode: string; countryName: string }[] {
+    return this.payoutGroups
+      .filter(g => this.isGroupActive(g))
+      .map(g => ({ countryCode: g.countryCode, countryName: g.countryName }));
+  }
+
+  /** Picking a country in the dropdown sets both code and name on the new point. */
+  onPointCountrySelect(code: string): void {
+    const g = this.payoutGroups.find(x => x.countryCode === code);
+    this.newPoint.countryCode = code;
+    this.newPoint.countryName = g?.countryName || '';
+  }
+
   loadCashPoints(): void {
     this.cashPointsLoading = true;
     this.configService.getAllCashPoints().subscribe({

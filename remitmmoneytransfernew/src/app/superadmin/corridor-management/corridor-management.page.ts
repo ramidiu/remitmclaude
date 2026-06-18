@@ -3,6 +3,7 @@ import { ToastController } from '@ionic/angular';
 import { PartnerService } from '../../core/services/partner.service';
 import { FxService } from '../../core/services/fx.service';
 import { ConfigService } from '../../core/services/config.service';
+import { toAlpha2, countryName } from '../../shared/utils/country-codes';
 
 @Component({
   selector: 'app-corridor-management',
@@ -59,6 +60,8 @@ export class CorridorManagementPage implements OnInit {
   // Used to filter corridor list to only those with both sides enabled
   activeSendCurrencies: Set<string> = new Set();
   activeReceiveCurrencies: Set<string> = new Set();
+  activeReceiveCountries: Set<string> = new Set();   // alpha-2 — per-country gate (shared currencies)
+  countryName = countryName;   // full country name in the template
 
   // Edit mapping
   editingMappingId: number | null = null;
@@ -102,9 +105,10 @@ export class CorridorManagementPage implements OnInit {
       next: (res: any) => {
         const data = res?.data || res || [];
         this.activeReceiveCurrencies = new Set((data as any[]).map(c => c.currency).filter(Boolean));
+        this.activeReceiveCountries = new Set((data as any[]).map(c => (c.countryCode || '').toUpperCase()).filter(Boolean));
         this.mergeCorridors();
       },
-      error: () => { this.activeReceiveCurrencies = new Set(); this.mergeCorridors(); }
+      error: () => { this.activeReceiveCurrencies = new Set(); this.activeReceiveCountries = new Set(); this.mergeCorridors(); }
     });
   }
 
@@ -161,7 +165,8 @@ export class CorridorManagementPage implements OnInit {
   mergeCorridors(): void {
     const configMap = new Map<string, any>();
     this.corridorConfigs.forEach(cfg => {
-      configMap.set(`${cfg.fromCurrency}-${cfg.toCurrency}`, cfg);
+      // Key by country too — several countries can share a currency pair (XOF/XAF).
+      configMap.set(`${cfg.fromCurrency}-${cfg.toCurrency}-${cfg.receiveCountry || ''}`, cfg);
     });
 
     const seen = new Set<string>();
@@ -172,7 +177,7 @@ export class CorridorManagementPage implements OnInit {
     // instead of falling through to show all 28. Only corridors backed by active
     // payment methods (send) AND active payout types (receive) are displayed.
     const hasSendConfig = this.activeSendCurrencies.size > 0;
-    const hasReceiveConfig = this.activeReceiveCurrencies.size > 0;
+    const hasReceiveConfig = this.activeReceiveCountries.size > 0;
 
     // Commented by Naresh: removed unsafe all-corridor fallback
     // Old: const hasActiveConfig = hasSendConfig || hasReceiveConfig;
@@ -181,11 +186,11 @@ export class CorridorManagementPage implements OnInit {
 
     // Add corridors from FX corridors list
     this.corridors.forEach(c => {
-      const key = `${c.sendCurrency}-${c.receiveCurrency}`;
+      const key = `${c.sendCurrency}-${c.receiveCurrency}-${c.receiveCountry || ''}`;
       seen.add(key);
       const cfg = configMap.get(key);
       const sendActive = hasSendConfig && this.activeSendCurrencies.has(c.sendCurrency);
-      const receiveActive = hasReceiveConfig && this.activeReceiveCurrencies.has(c.receiveCurrency);
+      const receiveActive = hasReceiveConfig && this.activeReceiveCountries.has(toAlpha2(c.receiveCountry));
       // Only include corridors where BOTH sides are configured/active
       if (!sendActive || !receiveActive) return;
       merged.push({
@@ -203,17 +208,17 @@ export class CorridorManagementPage implements OnInit {
 
     // Add any configs that don't have a matching FX corridor
     this.corridorConfigs.forEach(cfg => {
-      const key = `${cfg.fromCurrency}-${cfg.toCurrency}`;
+      const key = `${cfg.fromCurrency}-${cfg.toCurrency}-${cfg.receiveCountry || ''}`;
       if (!seen.has(key)) {
         const sendActive = hasSendConfig && this.activeSendCurrencies.has(cfg.fromCurrency);
-        const receiveActive = hasReceiveConfig && this.activeReceiveCurrencies.has(cfg.toCurrency);
+        const receiveActive = hasReceiveConfig && this.activeReceiveCountries.has(toAlpha2(cfg.receiveCountry));
         if (!sendActive || !receiveActive) return;
         seen.add(key);
         merged.push({
           fromCurrency: cfg.fromCurrency,
           toCurrency: cfg.toCurrency,
           sendCountry: null,
-          receiveCountry: null,
+          receiveCountry: cfg.receiveCountry || null,
           isActive: cfg.isActive,
           corridorId: null,
           config: cfg,
@@ -322,6 +327,7 @@ export class CorridorManagementPage implements OnInit {
   saveCorridorConfig(corridor: any): void {
     this.savingConfig = true;
     const data = {
+      receiveCountry: corridor.receiveCountry || null,
       payinPartnerId: this.configForm.payinPartnerId || null,
       payinShareType: this.configForm.payinShareType,
       payinShareValue: this.configForm.payinShareValue || 0,
@@ -396,6 +402,7 @@ export class CorridorManagementPage implements OnInit {
   deleteMapping(mapping: any): void {
     // Clear partners from corridor_fee_config rather than deleting the row
     this.partnerService.updateCorridorConfig(mapping.fromCurrency, mapping.toCurrency, {
+      receiveCountry: mapping.receiveCountry || null,
       payinPartnerId: null,
       payinShareType: 'PERCENTAGE',
       payinShareValue: 0,

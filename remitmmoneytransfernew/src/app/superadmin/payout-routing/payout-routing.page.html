@@ -30,7 +30,7 @@
           <tr *ngFor="let row of rows">
             <td class="corridor-cell">
               <span class="corridor-pair">{{ row.sendCurrency }} → {{ row.receiveCurrency }}</span>
-              <span class="corridor-country">{{ row.receiveCountry }}</span>
+              <span class="corridor-country">{{ countryName(row.receiveCountry) }}</span>
             </td>
             <td>{{ prettyMethod(row.deliveryMethod) }}</td>
             <td>

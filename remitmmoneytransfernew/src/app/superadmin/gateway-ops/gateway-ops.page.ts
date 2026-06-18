@@ -22,6 +22,9 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
   summary: any = { pending: 0, paid: 0, paidTotalAmount: 0, cancelled: 0 };
   loading = true;
   search = '';                  // server-side search (reference / sender)
+  fromDate = '';                // date range filter (yyyy-MM-dd)
+  toDate = '';
+  exporting = false;
 
   // Server-side pagination
   page = 0;
@@ -52,6 +55,8 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
       this.gateway = (pm.get('gateway') || '').toUpperCase();
       this.scope = 'all';
       this.search = '';
+      this.fromDate = '';
+      this.toDate = '';
       this.page = 0;
       this.load();
     });
@@ -78,7 +83,7 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
   load(): void {
     if (!this.gateway) return;
     this.loading = true;
-    this.partnerService.getGatewayTransactions(this.gateway, this.scope, this.page, this.size, this.search)
+    this.partnerService.getGatewayTransactions(this.gateway, this.scope, this.page, this.size, this.search, this.fromDate, this.toDate)
       .pipe(takeUntil(this.destroy$)).subscribe({
         next: (res) => {
           this.rows = res?.transactions || [];
@@ -96,6 +101,30 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
     if (next < 0 || next >= this.totalPages) return;
     this.page = next;
     this.load();
+  }
+
+  /** Apply / clear the from–to date filter (resets to page 0). */
+  applyDateFilter(): void { this.page = 0; this.load(); }
+  clearDateFilter(): void { this.fromDate = ''; this.toDate = ''; this.page = 0; this.load(); }
+
+  /** Download the current view (scope + date range + search) as CSV. */
+  exportCsv(): void {
+    if (!this.gateway || this.exporting) return;
+    this.exporting = true;
+    this.partnerService.downloadGatewayCsv(this.gateway, this.scope, this.search, this.fromDate, this.toDate)
+      .pipe(takeUntil(this.destroy$)).subscribe({
+        next: (blob: Blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const range = (this.fromDate || this.toDate) ? `_${this.fromDate || 'start'}_to_${this.toDate || 'now'}` : '';
+          a.href = url;
+          a.download = `${this.gateway.toLowerCase()}_${this.scope}${range}.csv`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          this.exporting = false;
+        },
+        error: () => { this.exporting = false; this.showToast('Export failed', 'danger'); }
+      });
   }
 
   /** A row is actionable (Check Status) when its CURRENT status is still in flight — any tab. */

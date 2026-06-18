@@ -14,6 +14,7 @@ import { ReferralService } from '../../core/services/referral.service';
 import { environment } from '../../../environments/environment';
 import { BeneficiaryResponse } from '../../core/models/beneficiary.model';
 import { CorridorResponse, QuoteResponse } from '../../core/models/fx.model';
+import { toAlpha2 } from '../../shared/utils/country-codes';
 
 @Component({
   selector: 'app-send-money',
@@ -95,6 +96,12 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
     SGP: 'Singapore', MYS: 'Malaysia',
     DEU: 'Germany', FRA: 'France', ITA: 'Italy', ESP: 'Spain',
     UGA: 'Uganda', TZA: 'Tanzania', EGY: 'Egypt', MAR: 'Morocco',
+    // New African corridor countries (ISO-3)
+    ZMB: 'Zambia', ZWE: 'Zimbabwe', RWA: 'Rwanda', CIV: "Côte d'Ivoire",
+    CMR: 'Cameroon', SEN: 'Senegal', MOZ: 'Mozambique', SLE: 'Sierra Leone',
+    BFA: 'Burkina Faso', NER: 'Niger', GIN: 'Guinea', GAB: 'Gabon',
+    MWI: 'Malawi', COD: 'DR Congo', BEN: 'Benin', BDI: 'Burundi',
+    TGO: 'Togo', TCD: 'Chad', ETH: 'Ethiopia',
     // ISO2 codes used by new corridors
     EG: 'Egypt', SD: 'Sudan', TR: 'Turkey',
     SA: 'Saudi Arabia', QA: 'Qatar', UG: 'Uganda', AE: 'UAE'
@@ -109,6 +116,12 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
     SGP: '\u{1F1F8}\u{1F1EC}', MYS: '\u{1F1F2}\u{1F1FE}',
     DEU: '\u{1F1E9}\u{1F1EA}', FRA: '\u{1F1EB}\u{1F1F7}', ITA: '\u{1F1EE}\u{1F1F9}', ESP: '\u{1F1EA}\u{1F1F8}',
     UGA: '\u{1F1FA}\u{1F1EC}', TZA: '\u{1F1F9}\u{1F1FF}', EGY: '\u{1F1EA}\u{1F1EC}', MAR: '\u{1F1F2}\u{1F1E6}',
+    // New African corridor countries (ISO-3)
+    ZMB: '\u{1F1FF}\u{1F1F2}', ZWE: '\u{1F1FF}\u{1F1FC}', RWA: '\u{1F1F7}\u{1F1FC}', CIV: '\u{1F1E8}\u{1F1EE}',
+    CMR: '\u{1F1E8}\u{1F1F2}', SEN: '\u{1F1F8}\u{1F1F3}', MOZ: '\u{1F1F2}\u{1F1FF}', SLE: '\u{1F1F8}\u{1F1F1}',
+    BFA: '\u{1F1E7}\u{1F1EB}', NER: '\u{1F1F3}\u{1F1EA}', GIN: '\u{1F1EC}\u{1F1F3}', GAB: '\u{1F1EC}\u{1F1E6}',
+    MWI: '\u{1F1F2}\u{1F1FC}', COD: '\u{1F1E8}\u{1F1E9}', BEN: '\u{1F1E7}\u{1F1EF}', BDI: '\u{1F1E7}\u{1F1EE}',
+    TGO: '\u{1F1F9}\u{1F1EC}', TCD: '\u{1F1F9}\u{1F1E9}', ETH: '\u{1F1EA}\u{1F1F9}',
     // ISO2 codes used by new corridors
     EG: '\u{1F1EA}\u{1F1EC}', SD: '\u{1F1F8}\u{1F1E9}', TR: '\u{1F1F9}\u{1F1F7}',
     SA: '\u{1F1F8}\u{1F1E6}', QA: '\u{1F1F6}\u{1F1E6}', UG: '\u{1F1FA}\u{1F1EC}', AE: '\u{1F1E6}\u{1F1EA}'
@@ -437,28 +450,19 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
     this.configService.getActiveReceiveCountries().subscribe({
       next: (res) => {
         const activeCountries = (res?.data || res || []) as any[];
-        // Transfer Config returns ISO-2 country codes (IN, BD, AU, DE), but corridors
-        // store receiveCountry as ISO-3 (IND, BGD, AUS, DEU). Build a set that contains
-        // BOTH forms so the strict country match works regardless of storage format.
-        const iso2ToIso3: Record<string, string> = {
-          IN: 'IND', PK: 'PAK', NG: 'NGA', GH: 'GHA', PH: 'PHL', KE: 'KEN',
-          NP: 'NPL', BD: 'BGD', AU: 'AUS', GB: 'GBR', US: 'USA',
-          DE: 'DEU', AE: 'ARE', ZA: 'ZAF', UG: 'UGA', TZ: 'TZA', LK: 'LKA',
-          SD: 'SDN', TR: 'TUR', EG: 'EGY', SA: 'SAU', QA: 'QAT'
-        };
         this.activeReceiveCountryCodes = activeCountries.map((c: any) => c.countryCode);
-        const activeSet = new Set<string>();
-        for (const code of this.activeReceiveCountryCodes) {
-          activeSet.add(code);
-          if (code.length === 2 && iso2ToIso3[code]) activeSet.add(iso2ToIso3[code]);
-        }
+        // Match PER COUNTRY (alpha-2), not per currency — so enabling one country never surfaces
+        // others that share its currency (XOF/XAF). toAlpha2 reconciles corridor alpha-3 codes.
+        const activeCountrySet = new Set(
+          activeCountries.map((c: any) => (c.countryCode || '').toUpperCase())
+        );
 
         this.fxService.getCorridors().subscribe({
           next: (corridors) => {
             const filtered = corridors.filter((c: CorridorResponse) =>
               c.isActive &&
               c.sendCurrency === this.userSendCurrency &&
-              activeSet.has(c.receiveCountry)
+              activeCountrySet.has(toAlpha2(c.receiveCountry))
             );
             // Deduplicate by receiveCountry — one tile per destination country
             const seen = new Set<string>();
@@ -1111,20 +1115,11 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
           this.configService.getActiveReceiveCountries().subscribe({
             next: (cres: any) => {
               const activeCountries = (cres?.data || cres || []) as any[];
-              const iso2ToIso3: Record<string, string> = {
-                IN: 'IND', PK: 'PAK', NG: 'NGA', GH: 'GHA', PH: 'PHL', KE: 'KEN',
-                NP: 'NPL', BD: 'BGD', AU: 'AUS', GB: 'GBR', US: 'USA',
-                DE: 'DEU', AE: 'ARE', ZA: 'ZAF', UG: 'UGA', TZ: 'TZA', LK: 'LKA'
-              };
-              const activeSet = new Set<string>();
-              for (const c of activeCountries) {
-                const code = c.countryCode;
-                activeSet.add(code);
-                if (code?.length === 2 && iso2ToIso3[code]) activeSet.add(iso2ToIso3[code]);
-              }
+              // Per-country gate (alpha-2), not per currency — shared currencies must not leak.
+              const activeCountrySet = new Set(activeCountries.map((c: any) => (c.countryCode || '').toUpperCase()));
               this.fxService.getCorridors().subscribe(corridors => {
                 const filtered = corridors.filter((c: any) =>
-                  c.isActive && c.sendCurrency === this.userSendCurrency && activeSet.has(c.receiveCountry)
+                  c.isActive && c.sendCurrency === this.userSendCurrency && activeCountrySet.has(toAlpha2(c.receiveCountry))
                 );
                 const seen = new Set<string>();
                 this.corridors = filtered.filter(c => {

@@ -93,6 +93,7 @@ public class CorridorMappingController {
             row.put("id", cfg.getId());
             row.put("fromCurrency", cfg.getFromCurrency());
             row.put("toCurrency", cfg.getToCurrency());
+            row.put("receiveCountry", cfg.getReceiveCountry());
             row.put("payinPartnerId", cfg.getPayinPartnerId());
             row.put("payinPartnerName", cfg.getPayinPartnerId() != null ? payinNames.getOrDefault(cfg.getPayinPartnerId(), "Unknown") : null);
             row.put("payinShareType", cfg.getPayinShareType());
@@ -113,18 +114,25 @@ public class CorridorMappingController {
 
     @PutMapping("/corridor-configs/{fromCurrency}/{toCurrency}")
     @PreAuthorize("hasPermission(null, 'config:manage_corridors')")
-    @Operation(summary = "Create or update corridor fee config for a currency pair")
+    @Operation(summary = "Create or update corridor fee config (optionally country-scoped via body.receiveCountry)")
     public ResponseEntity<ApiResponse<Map<String, Object>>> upsertCorridorConfig(
             @PathVariable String fromCurrency,
             @PathVariable String toCurrency,
             @RequestBody Map<String, Object> body,
             Authentication authentication) {
 
-        List<CorridorFeeConfig> existing = corridorFeeConfigRepository.findByFromCurrencyAndToCurrency(fromCurrency, toCurrency);
+        // Country-scoped: several countries can share a currency pair (XOF/XAF), so the config is
+        // keyed by (fromCurrency, toCurrency, receiveCountry) when receiveCountry is supplied in
+        // the body. Without it we fall back to the currency pair (deterministic) for legacy callers.
+        String receiveCountry = body.get("receiveCountry") != null ? body.get("receiveCountry").toString() : null;
+        List<CorridorFeeConfig> existing = (receiveCountry != null && !receiveCountry.isBlank())
+                ? corridorFeeConfigRepository.findByFromCurrencyAndToCurrencyAndReceiveCountry(fromCurrency, toCurrency, receiveCountry)
+                : corridorFeeConfigRepository.findByFromCurrencyAndToCurrency(fromCurrency, toCurrency);
         CorridorFeeConfig config = existing.isEmpty() ? new CorridorFeeConfig() : existing.get(0);
 
         config.setFromCurrency(fromCurrency);
         config.setToCurrency(toCurrency);
+        if (receiveCountry != null && !receiveCountry.isBlank()) config.setReceiveCountry(receiveCountry);
         config.setPayinPartnerId(body.get("payinPartnerId") != null ? Long.valueOf(body.get("payinPartnerId").toString()) : null);
         config.setPayinShareType(body.get("payinShareType") != null ? body.get("payinShareType").toString() : null);
         config.setPayinShareValue(body.get("payinShareValue") != null ? new BigDecimal(body.get("payinShareValue").toString()) : null);
@@ -138,15 +146,17 @@ public class CorridorMappingController {
 
         CorridorFeeConfig saved = corridorFeeConfigRepository.save(config);
 
-        // Sync corridor_partner_mappings so TransactionService auto-assigns this partner
-        List<CorridorPartnerMapping> existingMappings = corridorPartnerMappingRepository
-                .findByFromCurrencyAndToCurrency(fromCurrency, toCurrency);
+        // Sync corridor_partner_mappings (country-scoped when known) so TransactionService auto-assigns this partner
+        List<CorridorPartnerMapping> existingMappings = (receiveCountry != null && !receiveCountry.isBlank())
+                ? corridorPartnerMappingRepository.findByFromCurrencyAndToCurrencyAndReceiveCountry(fromCurrency, toCurrency, receiveCountry)
+                : corridorPartnerMappingRepository.findByFromCurrencyAndToCurrency(fromCurrency, toCurrency);
         existingMappings.forEach(m -> corridorPartnerMappingRepository.deleteById(m.getId()));
 
         if (saved.getPayoutPartnerId() != null) {
             CorridorPartnerMapping mapping = CorridorPartnerMapping.builder()
                     .fromCurrency(fromCurrency)
                     .toCurrency(toCurrency)
+                    .receiveCountry(receiveCountry)
                     .partnerId(saved.getPayoutPartnerId())
                     .isActive(true)
                     .build();
@@ -154,9 +164,12 @@ public class CorridorMappingController {
         }
 
         // Drive the GATEWAY too: corridor_delivery_methods is the single source of truth the
-        // PayoutRoutingService reads. Sync this corridor's delivery-method rows to the chosen payout
-        // partner so the recipient form / validation / payout follow it immediately (null clears it).
-        corridorRepository.findBySendCurrencyAndReceiveCurrency(fromCurrency, toCurrency).ifPresent(corridor -> {
+        // PayoutRoutingService reads. Sync THIS country's corridor delivery-method rows to the chosen
+        // payout partner so the recipient form / validation / payout follow it immediately (null clears it).
+        java.util.Optional<CorridorEntity> corridorOpt = (receiveCountry != null && !receiveCountry.isBlank())
+                ? corridorRepository.findFirstBySendCurrencyAndReceiveCurrencyAndReceiveCountryAndIsActiveTrueOrderByIdAsc(fromCurrency, toCurrency, receiveCountry)
+                : corridorRepository.findFirstBySendCurrencyAndReceiveCurrencyAndIsActiveTrueOrderByIdAsc(fromCurrency, toCurrency);
+        corridorOpt.ifPresent(corridor -> {
             List<CorridorDeliveryMethodEntity> methods =
                     corridorDeliveryMethodRepository.findByCorridorIdAndIsActiveTrue(corridor.getId());
             for (CorridorDeliveryMethodEntity dm : methods) {
@@ -170,6 +183,7 @@ public class CorridorMappingController {
         result.put("id", saved.getId());
         result.put("fromCurrency", saved.getFromCurrency());
         result.put("toCurrency", saved.getToCurrency());
+        result.put("receiveCountry", saved.getReceiveCountry());
         result.put("payinPartnerId", saved.getPayinPartnerId());
         if (saved.getPayinPartnerId() != null) {
             result.put("payinPartnerName", payinPartnerRepository.findById(saved.getPayinPartnerId())

@@ -129,7 +129,7 @@
         </div>
 
         <div class="risk-card__breakdown">
-          <div class="risk-card__breakdown-item" *ngFor="let entry of breakdownEntries()">
+          <div class="risk-card__breakdown-item" *ngFor="let entry of breakdownEntries; trackBy: trackBreakdown">
             <span class="fb-field__label">{{ entry.key }}</span>
             <span class="risk-card__value">{{ entry.value }}</span>
           </div>
@@ -300,12 +300,12 @@
     </div>
 
     <div class="kyc-docs-list" *ngIf="displayDocuments.length > 0">
-     <div class="kyc-doc-section kyc-doc-section--{{ section.key }}" *ngFor="let section of displayDocSections">
+     <div class="kyc-doc-section kyc-doc-section--{{ section.key }}" *ngFor="let section of displayDocSections; trackBy: trackSection">
       <div class="kyc-doc-section__title">
         {{ section.title }}
         <span class="kyc-doc-section__count">{{ section.docs.length }}</span>
       </div>
-      <div class="kyc-doc-card fb-card" [class.kyc-doc-card--previous]="section.key !== 'pending'" *ngFor="let doc of section.docs">
+      <div class="kyc-doc-card fb-card" [class.kyc-doc-card--previous]="section.key !== 'pending'" *ngFor="let doc of section.docs; trackBy: trackDoc">
         <div class="kyc-doc-card__header">
           <div>
             <span class="kyc-doc-card__type">{{ formatDocType(doc.documentType) }}</span>

@@ -354,6 +354,8 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     if (autoShowForm && !this.showAddForm) this.showAddForm = true;
 
     // Fire all calls independently so each populates state as soon as it resolves.
+    // Bank config carries the country's real currency — use it to load payout types so we
+    // don't depend on a hardcoded country→currency map (which was missing the new countries).
     this.configService.getBankConfig(countryCode).pipe(takeUntil(this.destroy$)).subscribe({
       next: (bank: any) => {
         const bankCfg = bank?.data || bank;
@@ -361,33 +363,14 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         this.bankCodeLabel = bankCfg?.identifierLabel || 'Bank Code';
         this.bankCodePlaceholder = bankCfg?.identifierFormat ? `Format: ${bankCfg.identifierFormat}` : 'Enter code';
         this.bankCodeFormat = bankCfg?.identifierFormat || '';
+        this.loadDeliveryMethods(bankCfg?.currency || receiveCurrency);
       },
-      error: () => {}
+      error: () => { this.loadDeliveryMethods(receiveCurrency); }
     });
 
     this.configService.getBankNames(iso2).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => { this.bankNames = res?.data || res || []; },
       error: () => { this.bankNames = []; }
-    });
-
-    this.configService.getPayoutTypesByCurrency(receiveCurrency).pipe(takeUntil(this.destroy$)).subscribe({
-      next: (payouts: any) => {
-        const payoutData: any[] = (payouts?.data || payouts || []) as any[];
-        const types = payoutData.filter((t: any) => t.isActive);
-        const seen = new Set<string>();
-        this.availableDeliveryMethods = types
-          .map((t: any) => this.payoutToDelivery[t.payoutType] || t.payoutType)
-          .filter((v: string) => v && !seen.has(v) && !!seen.add(v))
-          .map((v: string) => ({ value: v, label: this.allDeliveryMethodLabels[v] || v }));
-        // Pre-select the delivery method chosen on Send Money (so we don't ask again).
-        if (this.preselectedDeliveryMethod &&
-            this.availableDeliveryMethods.some(d => d.value === this.preselectedDeliveryMethod)) {
-          this.addForm.patchValue({ deliveryMethod: this.preselectedDeliveryMethod });
-        }
-        // Ensure collection points load for the preselected corridor (country patched with emitEvent:false).
-        this.loadCashCollectionPointsIfNeeded();
-      },
-      error: () => { this.availableDeliveryMethods = []; }
     });
 
     this.configService.getMobileServices(iso2).pipe(takeUntil(this.destroy$)).subscribe({
@@ -406,6 +389,29 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         this.cashPoints = cashData.filter((p: any) => p.isActive).map((p: any) => p.pointName);
       },
       error: () => { this.cashPoints = []; }
+    });
+  }
+
+  /** Load the country's delivery methods (by its real currency) and apply the preselected one. */
+  private loadDeliveryMethods(currency: string): void {
+    this.configService.getPayoutTypesByCurrency(currency).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (payouts: any) => {
+        const payoutData: any[] = (payouts?.data || payouts || []) as any[];
+        const types = payoutData.filter((t: any) => t.isActive);
+        const seen = new Set<string>();
+        this.availableDeliveryMethods = types
+          .map((t: any) => this.payoutToDelivery[t.payoutType] || t.payoutType)
+          .filter((v: string) => v && !seen.has(v) && !!seen.add(v))
+          .map((v: string) => ({ value: v, label: this.allDeliveryMethodLabels[v] || v }));
+        // Pre-select the delivery method chosen on Send Money (so we don't ask again).
+        if (this.preselectedDeliveryMethod &&
+            this.availableDeliveryMethods.some(d => d.value === this.preselectedDeliveryMethod)) {
+          this.addForm.patchValue({ deliveryMethod: this.preselectedDeliveryMethod });
+        }
+        // Ensure collection points load for the preselected corridor.
+        this.loadCashCollectionPointsIfNeeded();
+      },
+      error: () => { this.availableDeliveryMethods = []; }
     });
   }
 
@@ -696,8 +702,11 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
           name: p.pointName, code: p.pointName, address: p.address || '', city: p.city || ''
         }));
         this.loadingCashCollectionPoints = false;
+        // Whether a point must be selected depends on whether any exist — re-apply validators.
+        if (this.addForm.get('deliveryMethod')?.value === 'CASH_PICKUP') this.updateDeliveryValidators('CASH_PICKUP');
       },
-      error: () => { this.cashCollectionPoints = []; this.loadingCashCollectionPoints = false; }
+      error: () => { this.cashCollectionPoints = []; this.loadingCashCollectionPoints = false;
+        if (this.addForm.get('deliveryMethod')?.value === 'CASH_PICKUP') this.updateDeliveryValidators('CASH_PICKUP'); }
     });
   }
 
@@ -752,27 +761,24 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         if (this.isSudan()) {
           break;
         }
+        // Manual bank form: Bank Name → Account Number → Full Name → Mobile → Address → Relationship.
+        // Branch / bank state / bank city / SWIFT are not collected on the manual form (kept only as
+        // country/gateway specifics: IBAN for Gulf/SEPA, Routing for Zeepay).
         this.addForm.get('address')!.setValidators(this.addressOptional() ? [] : [Validators.required]);
         this.addForm.get('relationship')!.setValidators([Validators.required]);
-        this.addForm.get('sortCode')!.setValidators([Validators.required]);
-        this.addForm.get('branchState')!.setValidators([Validators.required]);
-        this.addForm.get('branchCity')!.setValidators([Validators.required]);
         if (ibanCountry) {
           this.addForm.get('iban')!.setValidators([Validators.required, Validators.minLength(15), Validators.maxLength(34)]);
-          // SWIFT optional in IBAN corridors
-        } else if (!this.isNoSwiftCountry()) {
-          // Egypt (and any other country flagged identifier_name='NONE') skips SWIFT entirely.
-          this.addForm.get('swiftBic')!.setValidators([Validators.required]);
         }
         break;
       case 'CASH_PICKUP':
         this.addForm.get('mobileNumber')!.setValidators([Validators.required, Validators.minLength(7)]);
         this.addForm.get('address')!.setValidators(this.addressOptional() ? [] : [Validators.required]);
         this.addForm.get('relationship')!.setValidators([Validators.required]);
-        this.addForm.get('bankName')!.setValidators([Validators.required]);
-        this.addForm.get('accountNumber')!.setValidators([Validators.required]);
-        this.addForm.get('idNumber')!.setValidators([Validators.required]);
-        this.addForm.get('city')!.setValidators([Validators.required]);
+        // Collection point fields auto-fill (read-only) from the selected point. Require choosing a
+        // point ONLY when the country has collection points; otherwise the team assigns it at payout.
+        if (this.cashCollectionPoints.length > 0) {
+          this.addForm.get('bankName')!.setValidators([Validators.required]);
+        }
         break;
       case 'MOBILE_WALLET':
         this.addForm.get('mobileProvider')!.setValidators([Validators.required]);
@@ -812,7 +818,15 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     IND: 'INR', PAK: 'PKR', NGA: 'NGN', GHA: 'GHS', PHL: 'PHP', KEN: 'KES',
     NPL: 'NPR', BGD: 'BDT', AUS: 'AUD', GBR: 'GBP', USA: 'USD',
     DEU: 'EUR', ARE: 'AED', ZAF: 'ZAR', UGA: 'UGX', TZA: 'TZS',
-    SDN: 'SDG', TUR: 'TRY', EGY: 'EGP', SAU: 'SAR', QAT: 'QAR'
+    SDN: 'SDG', TUR: 'TRY', EGY: 'EGP', SAU: 'SAR', QAT: 'QAR',
+    // African corridor countries (ISO-2 and ISO-3)
+    ZM: 'ZMW', ZMB: 'ZMW', ZW: 'ZWL', ZWE: 'ZWL', RW: 'RWF', RWA: 'RWF',
+    CI: 'XOF', CIV: 'XOF', CM: 'XAF', CMR: 'XAF', SN: 'XOF', SEN: 'XOF',
+    MZ: 'MZN', MOZ: 'MZN', SL: 'SLL', SLE: 'SLL', BF: 'XOF', BFA: 'XOF',
+    NE: 'XOF', NER: 'XOF', GN: 'GNF', GIN: 'GNF', GA: 'XAF', GAB: 'XAF',
+    MW: 'MWK', MWI: 'MWK', CD: 'CDF', COD: 'CDF', BJ: 'XOF', BEN: 'XOF',
+    BI: 'BIF', BDI: 'BIF', TG: 'XOF', TGO: 'XOF', TD: 'XAF', TCD: 'XAF',
+    ET: 'ETB', ETH: 'ETB'
   };
 
   /**

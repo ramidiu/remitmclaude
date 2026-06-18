@@ -25,6 +25,10 @@ public class CorridorFeeConfig {
     @Column(name = "to_currency", nullable = false, length = 3)
     private String toCurrency;
 
+    /** Receive country (ISO-3) — disambiguates corridors that share a currency (XOF/XAF). */
+    @Column(name = "receive_country", length = 3)
+    private String receiveCountry;
+
     @Column(name = "payin_partner_id")
     private Long payinPartnerId;
 

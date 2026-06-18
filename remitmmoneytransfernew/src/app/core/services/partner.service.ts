@@ -15,10 +15,20 @@ export class PartnerService {
 
   // Gateway operations (admin per-rail pages: Nsano / Zeepay). Each page = one gateway only.
   getGatewayTransactions(gateway: string, scope: 'all' | 'pending' | 'done' | 'cancelled' = 'all',
-                         page = 0, size = 25, search = ''): Observable<any> {
+                         page = 0, size = 25, search = '', from = '', to = ''): Observable<any> {
     let params = new HttpParams().set('scope', scope).set('page', page).set('size', size);
     if (search && search.trim()) params = params.set('search', search.trim());
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
     return this.http.get(`${environment.apiUrl}/payout/gateway/${gateway}/transactions`, { params });
+  }
+  /** Download the current gateway view (scope + date range + search) as a CSV blob. */
+  downloadGatewayCsv(gateway: string, scope: string, search = '', from = '', to = ''): Observable<Blob> {
+    let params = new HttpParams().set('scope', scope);
+    if (search && search.trim()) params = params.set('search', search.trim());
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get(`${environment.apiUrl}/payout/gateway/${gateway}/export`, { params, responseType: 'blob' });
   }
   gatewayRetry(referenceNumber: string): Observable<any> {
     return this.http.post(`${environment.apiUrl}/payout/disburse/${referenceNumber}`, {});

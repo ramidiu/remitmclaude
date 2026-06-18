@@ -24,28 +24,37 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
   kycStatus: KycStatusResponse | null = null;
   documents: KycDocumentResponse[] = [];
 
-  /** Docs shown in the UI: hide imported/placeholder docs (no real file), keep all real uploads. */
-  get displayDocuments(): KycDocumentResponse[] {
-    return this.documents.filter(d => {
+  // PRECOMPUTED, stable-reference views of `documents`. These used to be getters, but a getter
+  // that returns a NEW array on every change-detection pass makes *ngFor tear down and recreate
+  // every row (and every <ion-icon> inside it) each pass. Each new ion-icon async-loads its SVG
+  // inside zone.js, which schedules another change-detection pass → infinite loop → the page
+  // (and the whole app) freezes on visit. Computing once on data change keeps references stable.
+  displayDocuments: KycDocumentResponse[] = [];
+  displayDocSections: { key: string; title: string; docs: KycDocumentResponse[] }[] = [];
+
+  /** Recompute the doc views whenever `documents` changes. Hide imported/placeholder docs (no
+   *  real file), keep all real uploads; group into Awaiting Review / Previously Approved / History. */
+  private setDocuments(docs: KycDocumentResponse[] | null | undefined): void {
+    this.documents = docs || [];
+    this.displayDocuments = this.documents.filter(d => {
       const p = ((d as any).filePath || '').toLowerCase();
       return (d as any).realUpload !== false && !p.includes('no_image');
     });
-  }
-
-  /**
-   * Group the documents into clean sections so the admin can instantly tell the NEW upload(s)
-   * awaiting review from the PREVIOUSLY APPROVED documents (preserved when a verified customer
-   * re-uploaded) and any rejected/expired history.
-   */
-  get displayDocSections(): { key: string; title: string; docs: KycDocumentResponse[] }[] {
-    const docs = [...this.displayDocuments].sort((a: any, b: any) =>
+    const sorted = [...this.displayDocuments].sort((a: any, b: any) =>
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    return [
-      { key: 'pending',  title: 'Awaiting Review',    docs: docs.filter(d => d.status === 'PENDING') },
-      { key: 'approved', title: 'Previously Approved', docs: docs.filter(d => d.status === 'APPROVED') },
-      { key: 'history',  title: 'History',             docs: docs.filter(d => d.status === 'REJECTED' || (d.status as any) === 'EXPIRED') },
+    this.displayDocSections = [
+      { key: 'pending',  title: 'Awaiting Review',     docs: sorted.filter(d => d.status === 'PENDING') },
+      { key: 'approved', title: 'Previously Approved',  docs: sorted.filter(d => d.status === 'APPROVED') },
+      { key: 'history',  title: 'History',              docs: sorted.filter(d => d.status === 'REJECTED' || (d.status as any) === 'EXPIRED') },
     ].filter(s => s.docs.length > 0);
   }
+
+  // trackBy keeps *ngFor matching existing rows by stable identity, so DOM/ion-icons are reused
+  // instead of rebuilt — defense in depth against the change-detection loop above.
+  trackSection = (_: number, s: { key: string }) => s.key;
+  trackDoc = (_: number, d: KycDocumentResponse) => d.id;
+  trackBreakdown = (_: number, b: { key: string }) => b.key;
+
   transactions: TransactionResponse[] = [];
   totalTransactions = 0;
   txPage = 0;
@@ -107,6 +116,9 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
   ];
 
   riskScore: RiskScoreResponse | null = null;
+  /** Precomputed from riskScore.breakdown — was a method called inside *ngFor (same new-array-per-CD
+   *  freeze risk). Set once when the risk score loads. */
+  breakdownEntries: Array<{ key: string; value: any }> = [];
   riskLoading = false;
   riskOverrideLevel: 'LOW' | 'MEDIUM' | 'HIGH' | '' = '';
   riskOverriding = false;
@@ -146,7 +158,7 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
       next: ({ user, kycStatus, documents }) => {
         this.user = user;
         this.kycStatus = kycStatus;
-        this.documents = documents || [];
+        this.setDocuments(documents);
         this.initForm(user);
         this.loadTransactions(user.id);
         this.loadRiskScore(user.id);
@@ -165,11 +177,15 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
     this.userService.getRiskScore(numericId).subscribe({
       next: (res) => {
         this.riskScore = res;
+        this.breakdownEntries = res?.breakdown
+          ? Object.entries(res.breakdown).map(([k, v]) => ({ key: k, value: v }))
+          : [];
         this.riskOverrideLevel = (res?.riskScore as any) || '';
         this.riskLoading = false;
       },
       error: () => {
         this.riskScore = null;
+        this.breakdownEntries = [];
         this.riskLoading = false;
       }
     });
@@ -198,11 +214,6 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
       case 'HIGH': return 'danger';
       default: return 'medium';
     }
-  }
-
-  breakdownEntries(): Array<{ key: string; value: any }> {
-    if (!this.riskScore?.breakdown) return [];
-    return Object.entries(this.riskScore.breakdown).map(([k, v]) => ({ key: k, value: v }));
   }
 
   loadTransactions(userId: number): void {
@@ -292,7 +303,7 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
             this.kycService.reviewDocument(this.uuid, doc.id, { status: KycDocumentStatus.APPROVED }).subscribe({
               next: () => {
                 this.showToast('Document approved.', 'success');
-                this.kycService.getDocuments(this.uuid).subscribe(docs => this.documents = docs || []);
+                this.kycService.getDocuments(this.uuid).subscribe(docs => this.setDocuments(docs));
                 this.kycService.getStatus(this.uuid).subscribe(s => this.kycStatus = s);
               },
               error: (err) => this.showToast(err.error?.message || 'Failed to approve document.', 'danger')
@@ -322,7 +333,7 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
             }).subscribe({
               next: () => {
                 this.showToast('Document rejected.', 'warning');
-                this.kycService.getDocuments(this.uuid).subscribe(docs => this.documents = docs || []);
+                this.kycService.getDocuments(this.uuid).subscribe(docs => this.setDocuments(docs));
                 this.kycService.getStatus(this.uuid).subscribe(s => this.kycStatus = s);
               },
               error: (err) => this.showToast(err.error?.message || 'Failed to reject document.', 'danger')
@@ -463,7 +474,7 @@ onFrontFileSelected(event: Event): void {
       this.uploading = false;
       this.resetUploadForm();
       this.showToast('Document(s) uploaded successfully.', 'success');
-      this.kycService.getDocuments(this.uuid).subscribe(docs => this.documents = docs || []);
+      this.kycService.getDocuments(this.uuid).subscribe(docs => this.setDocuments(docs));
       this.kycService.getStatus(this.uuid).subscribe(s => this.kycStatus = s);
     } catch (err: any) {
       this.uploading = false;

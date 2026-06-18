@@ -11,5 +11,9 @@ public interface CorridorPartnerMappingRepository extends JpaRepository<Corridor
 
     List<CorridorPartnerMapping> findByFromCurrencyAndToCurrency(String fromCurrency, String toCurrency);
 
+    /** Country-scoped mapping (disambiguates currencies shared by multiple countries). */
+    List<CorridorPartnerMapping> findByFromCurrencyAndToCurrencyAndReceiveCountry(
+            String fromCurrency, String toCurrency, String receiveCountry);
+
     List<CorridorPartnerMapping> findByPartnerId(Long partnerId);
 }

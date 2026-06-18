@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ToastController } from '@ionic/angular';
 import { PartnerService } from '../../core/services/partner.service';
+import { countryName } from '../../shared/utils/country-codes';
 
 /**
  * Payout Routing — the admin toggle for the gateway flow.
@@ -18,6 +19,7 @@ export class PayoutRoutingPage implements OnInit {
   partners: any[] = [];
   loading = true;
   savingId: number | null = null;
+  countryName = countryName;   // full destination-country name in the template
 
   constructor(
     private partnerService: PartnerService,

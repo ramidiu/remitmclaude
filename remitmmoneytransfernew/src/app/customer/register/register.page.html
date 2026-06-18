@@ -140,7 +140,7 @@
           </label>
         </div>
 
-        <button type="button" class="register-submit-btn" [disabled]="submitting" (click)="onRegister()">
+        <button type="button" class="register-submit-btn" [disabled]="submitting || !registerForm.get('agreeTerms')?.value" (click)="onRegister()">
           <ion-icon name="person-add-outline"></ion-icon>
           {{ submitting ? ('REGISTER.CREATING' | translate) : ('REGISTER.SUBMIT' | translate) }}
         </button>

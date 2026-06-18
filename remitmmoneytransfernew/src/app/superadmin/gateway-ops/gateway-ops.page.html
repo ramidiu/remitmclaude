@@ -44,6 +44,19 @@
     <input class="gw-search" type="text" [(ngModel)]="search" (ngModelChange)="onSearchChange()" placeholder="Search reference or sender…" />
   </div>
 
+  <!-- Date range + CSV export. The export downloads exactly the current view (tab + dates + search). -->
+  <div class="gw-toolbar gw-toolbar--filters">
+    <div class="gw-daterange">
+      <label>From <input type="date" [(ngModel)]="fromDate" (ngModelChange)="applyDateFilter()" /></label>
+      <label>To <input type="date" [(ngModel)]="toDate" (ngModelChange)="applyDateFilter()" /></label>
+      <button class="gw-tab" *ngIf="fromDate || toDate" (click)="clearDateFilter()">Clear</button>
+    </div>
+    <button class="gw-export-btn" (click)="exportCsv()" [disabled]="exporting">
+      <ion-icon name="download-outline"></ion-icon>
+      {{ exporting ? 'Exporting…' : 'Export CSV' }}
+    </button>
+  </div>
+
   <div class="fb-card table-card">
     <div *ngIf="loading" class="table-loading">
       <div class="fb-skeleton fb-skeleton--text" *ngFor="let i of [1,2,3,4,5]"></div>

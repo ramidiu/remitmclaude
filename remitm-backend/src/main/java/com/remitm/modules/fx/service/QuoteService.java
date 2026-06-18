@@ -49,8 +49,11 @@ public class QuoteService {
         // Resolve corridor
         Long corridorId = request.getCorridorId();
         if (corridorId == null) {
+            // Deterministic pick (lowest id) — several countries can share a currency pair
+            // (XOF/XAF), so this avoids NonUniqueResult. The FX rate is currency-level, so any
+            // corridor for the pair yields the same quote; routing later uses the exact corridor.
             CorridorEntity corridor = corridorRepository
-                    .findBySendCurrencyAndReceiveCurrencyAndIsActiveTrue(
+                    .findFirstBySendCurrencyAndReceiveCurrencyAndIsActiveTrueOrderByIdAsc(
                             request.getSendCurrency(), request.getReceiveCurrency())
                     .orElseThrow(() -> new RemitmException(
                             "No active corridor for " + request.getSendCurrency() + "/" + request.getReceiveCurrency(),

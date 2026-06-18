@@ -60,10 +60,11 @@ public class AutoPayoutListener {
         // Gateway = the one stamped at creation (immutable); fall back to live resolve if absent.
         String gwType = tx.getPayoutGateway();
         if (gwType == null || gwType.isBlank()) {
-            gwType = payoutRoutingService.resolve(
-                    tx.getReceiveCurrency(),
-                    tx.getDeliveryMethod() != null ? tx.getDeliveryMethod().name() : null
-            ).getGateway();
+            String dmName = tx.getDeliveryMethod() != null ? tx.getDeliveryMethod().name() : null;
+            // Prefer the exact corridor (country-specific); fall back to currency-only routing.
+            gwType = tx.getCorridorId() != null
+                    ? payoutRoutingService.resolveByCorridor(tx.getCorridorId(), dmName).getGateway()
+                    : payoutRoutingService.resolve(tx.getReceiveCurrency(), dmName).getGateway();
         }
 
         PayoutGateway gw = gatewayRegistry.getOrManual(gwType);

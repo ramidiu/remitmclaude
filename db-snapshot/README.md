@@ -1,9 +1,12 @@
-# RemitM DB Snapshot (test data removed)
+# RemitM DB Snapshot (legacy data migrated)
 
-Created after removing all test transactions, customers, and the payin/payout
-partner login accounts. Kept: the two seeded admin logins and all system config
-(roles/permissions, countries, banks, payout_types, payout_partners routing
-[NSano/ZEEPAY/MANUAL], payin_partners, corridor config, sanctions_lists, etc.).
+Test data was removed, then the legacy production database (`remitm1.sql`, old
+MariaDB system) was migrated into the new schema via `remitm-migration/`.
+Contains: 2 seeded admin logins + 210 migrated customers (passwords BCrypt-hashed,
+original passwords still work), 428 transactions, 243 beneficiaries, 210 wallets,
+386 KYC documents, 189 KYC verifications (35 users at TIER_2), and all system
+config (payin_partners, payout_partners routing [NSano/ZEEPAY/MANUAL], corridors,
+sanctions_lists, etc.).
 
 This snapshot is committed to the repo on purpose so a fresh `git clone` comes
 with a ready-to-use database and the document files (see `.gitignore` negation

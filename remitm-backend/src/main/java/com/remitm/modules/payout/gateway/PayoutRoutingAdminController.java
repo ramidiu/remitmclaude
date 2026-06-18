@@ -36,16 +36,17 @@ public class PayoutRoutingAdminController {
         Map<Long, PayoutPartner> partners = new HashMap<>();
         payoutPartnerRepository.findAll().forEach(p -> partners.put(p.getId(), p));
 
-        // Only show corridors that are ENABLED in Transfer Config — i.e. their receive currency has
-        // at least one active payout type (the same gate that makes a destination visible to customers).
-        // Routing a corridor a customer can't even pick is pointless clutter.
-        Set<String> enabledCurrencies = new HashSet<>(payoutTypeRepository.findActiveCurrencies());
+        // Only show corridors ENABLED in Transfer Config — gated PER COUNTRY (not per currency),
+        // so enabling Cameroon does NOT also surface Gabon/Chad just because they share XAF. Match
+        // the corridor's receive country (alpha-3) against the active payout-type countries (alpha-2).
+        Set<String> enabledCountries = new HashSet<>(payoutTypeRepository.findActiveCountryCodes());
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (CorridorDeliveryMethodEntity dm : deliveryMethodRepository.findAllWithCorridor()) {
             var c = dm.getCorridor();
-            if (c.getReceiveCurrency() == null || !enabledCurrencies.contains(c.getReceiveCurrency())) {
-                continue;   // corridor not enabled in Transfer Config → hide from routing
+            String iso2 = com.remitm.common.util.CountryCodes.toAlpha2(c.getReceiveCountry());
+            if (iso2 == null || !enabledCountries.contains(iso2)) {
+                continue;   // country not enabled in Transfer Config → hide from routing
             }
             PayoutPartner p = dm.getPayoutPartnerId() != null ? partners.get(dm.getPayoutPartnerId()) : null;
             Map<String, Object> row = new LinkedHashMap<>();

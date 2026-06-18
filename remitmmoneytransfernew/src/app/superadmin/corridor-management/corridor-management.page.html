@@ -40,7 +40,7 @@
                     <ion-icon name="arrow-forward-outline"></ion-icon>
                     <span class="currency-tag">{{ c.toCurrency }}</span>
                   </div>
-                  <div class="corridor-detail" *ngIf="c.sendCountry">{{ c.sendCountry }} &rarr; {{ c.receiveCountry }}</div>
+                  <div class="corridor-detail" *ngIf="c.sendCountry">{{ countryName(c.sendCountry) }} &rarr; {{ countryName(c.receiveCountry) }}</div>
                 </td>
                 <td>
                   <span class="role-badge role-badge--payin" [class.role-badge--active]="hasPayinPartner(c)">

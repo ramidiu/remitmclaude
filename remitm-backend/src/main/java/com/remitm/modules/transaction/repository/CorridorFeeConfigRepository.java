@@ -10,4 +10,8 @@ import java.util.List;
 public interface CorridorFeeConfigRepository extends JpaRepository<CorridorFeeConfig, Long> {
 
     List<CorridorFeeConfig> findByFromCurrencyAndToCurrency(String fromCurrency, String toCurrency);
+
+    /** Country-scoped config (disambiguates currencies shared by multiple countries). */
+    List<CorridorFeeConfig> findByFromCurrencyAndToCurrencyAndReceiveCountry(
+            String fromCurrency, String toCurrency, String receiveCountry);
 }

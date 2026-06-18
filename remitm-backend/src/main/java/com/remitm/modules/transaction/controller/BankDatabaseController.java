@@ -30,7 +30,9 @@ public class BankDatabaseController {
     @GetMapping("/config/{countryCode}")
     @Operation(summary = "Get country bank config")
     public ResponseEntity<ApiResponse<CountryBankConfig>> getConfig(@PathVariable String countryCode) {
-        CountryBankConfig config = countryBankConfigRepository.findByCountryCode(countryCode)
+        // Corridors use alpha-3 (CIV); country_bank_config is keyed by alpha-2 (CI). Normalize.
+        CountryBankConfig config = countryBankConfigRepository
+                .findByCountryCode(com.remitm.common.util.CountryCodes.toAlpha2(countryCode))
                 .orElseThrow(() -> new ResourceNotFoundException("CountryBankConfig", "countryCode", countryCode));
         return ResponseEntity.ok(ApiResponse.<CountryBankConfig>builder()
                 .success(true)
@@ -53,7 +55,7 @@ public class BankDatabaseController {
     @Operation(summary = "Exact bank match by identifier and country")
     public ResponseEntity<ApiResponse<BankDatabase>> lookupBank(
             @RequestParam String identifier, @RequestParam String country) {
-        BankDatabase bank = bankDatabaseRepository.findByCountryCodeAndBankIdentifier(country, identifier)
+        BankDatabase bank = bankDatabaseRepository.findByCountryCodeAndBankIdentifier(com.remitm.common.util.CountryCodes.toAlpha2(country), identifier)
                 .orElseThrow(() -> new ResourceNotFoundException("Bank", "identifier", identifier));
         return ResponseEntity.ok(ApiResponse.<BankDatabase>builder()
                 .success(true)
@@ -66,7 +68,7 @@ public class BankDatabaseController {
     public ResponseEntity<ApiResponse<List<BankDatabase>>> searchByIdentifier(
             @RequestParam String prefix, @RequestParam String country) {
         List<BankDatabase> banks = bankDatabaseRepository
-                .findByCountryCodeAndBankIdentifierStartingWith(country, prefix);
+                .findByCountryCodeAndBankIdentifierStartingWith(com.remitm.common.util.CountryCodes.toAlpha2(country), prefix);
         // Limit results to 10
         if (banks.size() > 10) {
             banks = banks.subList(0, 10);
@@ -82,7 +84,7 @@ public class BankDatabaseController {
     public ResponseEntity<ApiResponse<List<BankDatabase>>> searchByName(
             @RequestParam String name, @RequestParam String country) {
         List<BankDatabase> banks = bankDatabaseRepository
-                .findByCountryCodeAndBankNameContainingIgnoreCase(country, name);
+                .findByCountryCodeAndBankNameContainingIgnoreCase(com.remitm.common.util.CountryCodes.toAlpha2(country), name);
         // Limit results to 20
         if (banks.size() > 20) {
             banks = banks.subList(0, 20);
@@ -106,7 +108,7 @@ public class BankDatabaseController {
     @GetMapping("/full/{countryCode}")
     @Operation(summary = "Get banks (name + identifier/code) for a country — for code-aware lookups (e.g. Nsano Ghana)")
     public ResponseEntity<ApiResponse<List<BankDatabase>>> listBanksFull(@PathVariable String countryCode) {
-        List<BankDatabase> banks = bankDatabaseRepository.findByCountryCodeAndIsActiveTrueOrderByBankName(countryCode);
+        List<BankDatabase> banks = bankDatabaseRepository.findByCountryCodeAndIsActiveTrueOrderByBankName(com.remitm.common.util.CountryCodes.toAlpha2(countryCode));
         return ResponseEntity.ok(ApiResponse.<List<BankDatabase>>builder()
                 .success(true)
                 .data(banks)
