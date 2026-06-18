@@ -40,3 +40,10 @@ deploy/remitm.sql
 PAYMENTS.md
 deploy-live/insert_partner_logins.sql
 deploy-live/backfill_beneficiary_bank.sql
+
+# Ship the seed database snapshot WITH the repo so a fresh clone has data + documents.
+# These override the global *.sql.gz / *.tar.gz ignore rules above.
+!db-snapshot/
+!db-snapshot/remitm-clean.sql.gz
+!db-snapshot/kyc-uploads.tar.gz
+!db-snapshot/README.md
