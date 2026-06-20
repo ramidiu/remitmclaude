@@ -46,6 +46,37 @@ public class AccountController {
                 .build());
     }
 
+    @Operation(summary = "Public: request a deletion verification code",
+            description = "Unauthenticated. Emails a one-time code to the address if an eligible "
+                    + "account exists. Always returns success (does not reveal whether the email exists).")
+    @PostMapping("/public/delete-request")
+    public ResponseEntity<ApiResponse<Void>> publicDeleteRequest(
+            @RequestBody java.util.Map<String, String> body) {
+        accountService.requestPublicDeletionOtp(body != null ? body.get("email") : null);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true)
+                .message("If an account exists for that email, we've sent a 6-digit verification code to it.")
+                .build());
+    }
+
+    @Operation(summary = "Public: confirm account deletion with the emailed code",
+            description = "Unauthenticated. Verifies the OTP and soft-deletes the account "
+                    + "(records retained for the legal AML/KYC/tax period).")
+    @PostMapping("/public/delete-confirm")
+    public ResponseEntity<ApiResponse<Void>> publicDeleteConfirm(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        String email = body != null ? body.get("email") : null;
+        String otp = body != null ? body.get("otp") : null;
+        String reason = body != null ? body.get("reason") : null;
+        accountService.confirmPublicDeletion(email, otp, reason, clientIp(request),
+                request.getHeader("User-Agent"));
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true)
+                .message("Your account deletion request has been confirmed and your account deactivated.")
+                .build());
+    }
+
     private String extractBearerToken(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {

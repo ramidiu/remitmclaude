@@ -7,6 +7,8 @@ import com.remitm.common.exception.RemitmException;
 import com.remitm.modules.auth.entity.UserEntity;
 import com.remitm.modules.auth.repository.UserRepository;
 import com.remitm.modules.auth.service.AuthService;
+import com.remitm.modules.auth.service.AuthEmailService;
+import com.remitm.modules.auth.service.OtpService;
 import com.remitm.modules.notification.service.EmailService;
 import com.remitm.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,8 @@ public class AccountService {
     private final AuthService authService;
     private final EmailService emailService;
     private final AuditService auditService;
+    private final OtpService otpService;
+    private final AuthEmailService authEmailService;
 
     /**
      * Mark the authenticated user's account for deletion.
@@ -58,6 +62,76 @@ public class AccountService {
         UserEntity user = userRepository.findByUuid(uuid)
                 .orElseThrow(() -> new RemitmException("Account not found", HttpStatus.NOT_FOUND));
 
+        applySoftDelete(user, reason, accessToken, ipAddress, userAgent);
+    }
+
+    // =========================================================================
+    // PUBLIC (no-login) account deletion — Google Play requires a publicly
+    // accessible deletion path. Ownership is proven with an email OTP so an
+    // unauthenticated caller can't delete someone else's account.
+    // =========================================================================
+
+    /**
+     * Step 1: an unauthenticated user supplies their email; if an eligible
+     * account exists we email a one-time code. Always returns silently (the
+     * controller responds generically) so the endpoint can't be used to probe
+     * which emails are registered.
+     */
+    public void requestPublicDeletionOtp(String email) {
+        if (email == null || email.isBlank()) return;
+        String normalized = email.trim().toLowerCase();
+        userRepository.findByEmail(normalized).ifPresent(user -> {
+            if (user.getAccountStatus() == AccountStatus.DELETE_REQUESTED
+                    || user.getAccountStatus() == AccountStatus.DELETED) {
+                return; // already in progress — don't re-send
+            }
+            try {
+                String otp = otpService.generateOtp();
+                otpService.storeOtp(normalized, otp);
+                String fullName = ((user.getFirstName() != null ? user.getFirstName() : "") + " "
+                        + (user.getLastName() != null ? user.getLastName() : "")).trim();
+                authEmailService.sendOtpEmail(user.getEmail(), otp, fullName);
+            } catch (Exception e) {
+                log.warn("Failed to send public deletion OTP to {}: {}", normalized, e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Step 2: verify the emailed code, then soft-delete the account.
+     */
+    @Transactional
+    public void confirmPublicDeletion(String email, String otp, String reason,
+                                      String ipAddress, String userAgent) {
+        if (email == null || email.isBlank() || otp == null || otp.isBlank()) {
+            throw new RemitmException("Email and verification code are required", HttpStatus.BAD_REQUEST);
+        }
+        String normalized = email.trim().toLowerCase();
+        if (!otpService.validateOtp(normalized, otp.trim())) {
+            throw new RemitmException("Invalid or expired verification code", HttpStatus.BAD_REQUEST);
+        }
+        UserEntity user = userRepository.findByEmail(normalized)
+                .orElseThrow(() -> new RemitmException("Account not found", HttpStatus.NOT_FOUND));
+
+        if (user.getAccountStatus() == AccountStatus.DELETE_REQUESTED
+                || user.getAccountStatus() == AccountStatus.DELETED) {
+            otpService.deleteOtp(normalized);
+            throw new RemitmException("A deletion request is already in progress for this account",
+                    HttpStatus.CONFLICT);
+        }
+
+        applySoftDelete(user, reason, null, ipAddress, userAgent);
+        otpService.deleteOtp(normalized);
+        log.info("Public (OTP-verified) account deletion completed for {}", normalized);
+    }
+
+    /**
+     * Shared soft-delete: flag the account DELETE_REQUESTED, block login, revoke
+     * sessions, audit, and email a confirmation. Records are retained for the
+     * legally required AML/KYC/tax period (no hard delete here).
+     */
+    private void applySoftDelete(UserEntity user, String reason, String accessToken,
+                                 String ipAddress, String userAgent) {
         // Prevent duplicate requests.
         if (user.getAccountStatus() == AccountStatus.DELETE_REQUESTED
                 || user.getAccountStatus() == AccountStatus.DELETED) {
@@ -67,7 +141,6 @@ public class AccountService {
 
         UserStatus previousStatus = user.getStatus();
 
-        // Soft delete: flag the account, disable access, retain records.
         user.setAccountStatus(AccountStatus.DELETE_REQUESTED);
         user.setDeleteRequestedAt(LocalDateTime.now());
         user.setDeleteReason(reason);
@@ -83,7 +156,6 @@ public class AccountService {
                     user.getEmail(), e.getMessage());
         }
 
-        // Audit (IP + timestamp captured by AuditService).
         auditService.logAudit(
                 user.getId(), user.getEmail(), "CUSTOMER", "AccountService",
                 "ACCOUNT_DELETION_REQUESTED", "USER", user.getUuid(),
@@ -93,7 +165,6 @@ public class AccountService {
                 AccountStatus.DELETE_REQUESTED.name(),
                 ipAddress, userAgent);
 
-        // Confirmation email (best-effort).
         try {
             emailService.sendEmail(
                     user.getEmail(),

@@ -74,6 +74,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Auth endpoints
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Public account deletion (Google Play policy) — OTP-verified, no login
+                        .requestMatchers("/api/account/public/**").permitAll()
                         // PayIn endpoints
                         .requestMatchers("/api/payin/**").authenticated()
                         // Internal service-to-service endpoints
