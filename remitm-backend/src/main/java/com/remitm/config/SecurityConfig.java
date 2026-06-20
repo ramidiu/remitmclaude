@@ -48,6 +48,8 @@ public class SecurityConfig {
             "https://remitm.com",
             "https://www.remitm.com",
             "https://global.remitm.com",
+            "https://sendmoney.remitm.com",   // live customer domain
+            "https://remitm.remitz.co.uk",    // legacy domain (kept for safety)
             "http://localhost:8096",   // Docker frontend (remitm stack)
             "http://localhost:8100",
             "http://localhost:4200",
