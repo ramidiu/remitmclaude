@@ -388,7 +388,59 @@ export class SATransactionsPage implements OnInit {
   }
 
   exportTransactions(): void {
-    this.showToast('Export functionality - integrate with CSV export endpoint', 'primary');
+    this.showToast('Preparing export…', 'primary');
+    // Pull ALL rows matching the current filters (status / search / date range), not just the page.
+    this.transactionService.getAllTransactions(0, 100000, {
+      status: this.statusFilter || undefined,
+      search: this.searchQuery || undefined,
+      startDate: this.fromDate || undefined,
+      endDate: this.toDate || undefined
+    }).subscribe({
+      next: (res: any) => {
+        const data = res?.data || res;
+        const rows: any[] = data?.content || data || [];
+        if (!rows.length) { this.showToast('No transactions to export for the current filters.', 'warning'); return; }
+        const cols: Array<[string, (t: any) => any]> = [
+          ['Reference', t => t.referenceNumber],
+          ['Created (UTC)', t => t.createdAt],
+          ['Completed/Updated (UTC)', t => t.updatedAt],
+          ['Status', t => t.status],
+          ['Sender', t => t.senderName],
+          ['Sender Email', t => t.senderEmail],
+          ['Beneficiary', t => t.beneficiaryName],
+          ['Destination Country', t => t.beneficiaryCountry],
+          ['Beneficiary Bank', t => t.beneficiaryBankName],
+          ['Account Number', t => t.beneficiaryAccountNumber],
+          ['Branch', t => t.beneficiaryBranch],
+          ['Swift', t => t.beneficiarySwift],
+          ['Beneficiary Phone', t => t.beneficiaryPhone],
+          ['Send Amount', t => t.sendAmount],
+          ['Send Currency', t => t.sendCurrency],
+          ['Receive Amount', t => t.receiveAmount],
+          ['Receive Currency', t => t.receiveCurrency],
+          ['Exchange Rate', t => t.exchangeRate],
+          ['Fee', t => t.feeAmount],
+          ['Total Debit', t => t.totalDebitAmount],
+          ['Delivery Method', t => t.deliveryMethod],
+          ['Payout Partner', t => t.payoutPartnerName],
+          ['Funding Method', t => t.paymentMethodType]
+        ];
+        const esc = (v: any) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const header = cols.map(c => c[0]).join(',');
+        const body = rows.map(t => cols.map(c => esc(c[1](t))).join(',')).join('\n');
+        const csv = '﻿' + header + '\n' + body;   // BOM so Excel reads UTF-8
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const stamp = new Date().toISOString().slice(0, 10);
+        const range = (this.fromDate || this.toDate) ? `_${this.fromDate || 'start'}_to_${this.toDate || 'end'}` : '';
+        a.href = url; a.download = `remitm-transactions${range}_${stamp}.csv`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this.showToast(`Exported ${rows.length} transaction(s).`, 'success');
+      },
+      error: () => this.showToast('Export failed. Please try again.', 'danger')
+    });
   }
 
   private async showToast(message: string, color: string): Promise<void> {
