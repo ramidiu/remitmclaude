@@ -219,6 +219,7 @@ public class AdminTransactionController {
                 beneficiaryRepository.findById(tx.getBeneficiaryId()).ifPresent(b -> {
                     map.put("beneficiaryName", b.getFullName());
                     map.put("beneficiaryPhone", b.getMobileNumber());
+                    map.put("beneficiaryMobileProvider", b.getMobileProvider());
                     map.put("beneficiaryCountry", b.getCountry());
                     map.put("beneficiaryCity", b.getBranchCity());
                     map.put("beneficiaryBankName", b.getBankName());
@@ -233,6 +234,9 @@ public class AdminTransactionController {
             // may have stored an email local-part or null).
             map.put("senderName", resolveSenderName(tx.getSenderId(), tx.getSenderName(), tx.getSenderEmail()));
             map.put("senderEmail", tx.getSenderEmail());
+            // Raw notes carry purpose/source-of-funds for migrated txns
+            // ("Source of funds: X | Reason ID: Y | ...") — the export parses these out.
+            map.put("notes", tx.getNotes());
             return map;
         }).toList();
 

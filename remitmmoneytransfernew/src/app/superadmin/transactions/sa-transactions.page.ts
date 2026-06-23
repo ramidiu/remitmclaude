@@ -400,6 +400,30 @@ export class SATransactionsPage implements OnInit {
         const data = res?.data || res;
         const rows: any[] = data?.content || data || [];
         if (!rows.length) { this.showToast('No transactions to export for the current filters.', 'warning'); return; }
+        // Single "where the money lands" column so no row is ever blank: bank+account for
+        // bank deposits, provider+number for mobile wallets, partner for cash pickup. Falls
+        // back to whatever identifier exists, else an em-dash.
+        const has = (v: any) => v != null && String(v).trim() !== '';
+        const dest = (t: any) => {
+          const dm = String(t.deliveryMethod || '').toUpperCase();
+          if (dm === 'BANK_DEPOSIT' || dm === 'BANK_TRANSFER') {
+            const p = [t.beneficiaryBankName, t.beneficiaryAccountNumber].filter(has);
+            return p.length ? p.join(' — ') : '—';
+          }
+          if (dm === 'MOBILE_WALLET' || dm === 'MOBILE_MONEY') {
+            const p = [t.beneficiaryMobileProvider, t.beneficiaryPhone].filter(has);
+            return p.length ? p.join(' — ') : '—';
+          }
+          if (dm === 'CASH_PICKUP' || dm === 'CASH_COLLECTION') {
+            return has(t.payoutPartnerName) ? 'Cash pickup — ' + t.payoutPartnerName : 'Cash pickup';
+          }
+          const fb = [t.beneficiaryBankName, t.beneficiaryAccountNumber].filter(has).join(' — ')
+                  || [t.beneficiaryMobileProvider, t.beneficiaryPhone].filter(has).join(' — ');
+          return fb || '—';
+        };
+        // Migrated txns store purpose/source-of-funds inside notes:
+        // "Source of funds: X | Reason ID: Y | Compliance: Z | Migrated from remitm_old".
+        const noteVal = (t: any, re: RegExp) => { const m = re.exec(String(t.notes || '')); return m ? m[1].trim() : ''; };
         const cols: Array<[string, (t: any) => any]> = [
           ['Reference', t => t.referenceNumber],
           ['Created (UTC)', t => t.createdAt],
@@ -422,8 +446,11 @@ export class SATransactionsPage implements OnInit {
           ['Fee', t => t.feeAmount],
           ['Total Debit', t => t.totalDebitAmount],
           ['Delivery Method', t => t.deliveryMethod],
+          ['Payout Destination', t => dest(t)],
           ['Payout Partner', t => t.payoutPartnerName],
-          ['Funding Method', t => t.paymentMethodType]
+          ['Funding Method', t => t.paymentMethodType],
+          ['Reason for Transfer', t => noteVal(t, /Reason(?:\s*ID)?:\s*([^|]+)/i)],
+          ['Source of Funds', t => noteVal(t, /Source of funds:\s*([^|]+)/i)]
         ];
         const esc = (v: any) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
         const header = cols.map(c => c[0]).join(',');
