@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.remitm.app",
+      "sha256_cert_fingerprints": [
+        "E2:7C:CF:8C:13:08:A6:0F:A9:1F:D3:90:90:05:16:97:1C:B6:A2:5C:5E:31:E9:CE:1B:AE:7F:37:2D:0F:BA:DC"
+      ]
+    }
+  }
+]
