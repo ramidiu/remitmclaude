@@ -35,7 +35,25 @@
       "Bash(timeout 30 ssh -o ConnectTimeout=15 -o BatchMode=yes root@68.169.55.246 'docker ps --format '\\\\''table {{.Names}}\\\\t{{.Image}}\\\\t{{.Status}}'\\\\''')",
       "Bash(mvn -q -o compile)",
       "Bash(mvn -q compile)",
-      "Bash(./mvnw -q -o compile)"
+      "Bash(./mvnw -q -o compile)",
+      "Bash(git -c core.autocrlf=false diff -- remitm-backend/src/main/java/com/remitm/modules/payout/nsano/controller/NsanoCallbackController.java)",
+      "Bash(timeout 40 ssh -o ConnectTimeout=15 -o BatchMode=yes root@68.169.55.246 ' *)",
+      "Bash(timeout 60 ssh -o ConnectTimeout=15 -o BatchMode=yes root@68.169.55.246 ' *)",
+      "Bash(timeout 90 ssh -o ConnectTimeout=15 -o BatchMode=yes root@68.169.55.246 ' *)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> HTTP %{http_code} \\(%{time_total}s\\)\\\\n\" --max-time 15 https://sendmoney.remitm.com/)",
+      "Bash(curl -s -D - -o /dev/null --max-time 15 -X POST \"https://sendmoney.remitm.com/nsano/callback\")",
+      "Bash(curl -s -D - -o /dev/null --max-time 15 \"https://sendmoney.remitm.com/nsano/callback\")",
+      "Bash(curl -s -w '\\\\n-> HTTP %{http_code}\\\\n' --max-time 15 -X POST https://sendmoney.remitm.com/nsano/callback --data 'reference=PROBE-TEST&transactionId=0&status=TEST&msg=connectivity-probe')",
+      "Bash(curl -s --max-time 15 \"https://sendmoney.remitm.com/nsano/callback\")",
+      "Bash(curl -s -D - -o /dev/null --max-time 15 \"https://sendmoney.remitm.com/api/fx/rates\")",
+      "Bash(curl -s -o /dev/null -w \"POST /api/nsano/callback -> HTTP %{http_code}\\\\n\" --max-time 15 -X POST \"https://sendmoney.remitm.com/api/nsano/callback\")",
+      "Bash(timeout 20 ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@77.68.125.96 'echo SSH_OK; hostname; docker ps --format \"{{.Names}}\" 2>/dev/null')",
+      "Bash(timeout 90 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
+      "Bash(timeout 40 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
+      "Bash(timeout 30 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 'cat /etc/nginx/sites-enabled/sendmoney.remitm.com')",
+      "Bash(timeout 80 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
+      "Bash(git add *)",
+      "Bash(git -c core.autocrlf=false diff --cached --stat)"
     ]
   }
 }
