@@ -1,0 +1,16 @@
+# Local override: RemitM shares host ports with the Layla stack (it is a rebranded
+# copy). Remap RemitM to free ports so both stacks can run side by side.
+# Layla keeps 3310/6382/8095/8096; RemitM uses 3311/6383/8097/8098.
+services:
+  mysql:
+    ports: !override
+      - "3311:3306"
+  redis:
+    ports: !override
+      - "6383:6379"
+  backend:
+    ports: !override
+      - "8097:8080"
+  frontend:
+    ports: !override
+      - "8098:80"

@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Configuration bag for the NSANO Ghana payout (mobile-money / bank disbursement) integration.
  * See application.yml for the nsano.* block.
@@ -26,4 +29,11 @@ public class NsanoProperties {
 
     /** Status-poll scheduler fixed delay in milliseconds. */
     private long statusPollIntervalMs = 300000L;
+
+    /**
+     * Source IPs allowed to call the public inbound callback ({@code POST /nsano/callback}).
+     * NSANO sends callback responses only from these hosts. If the list is empty the IP check
+     * is disabled (fail-open) — used for local/staging where the source IP is unknown.
+     */
+    private List<String> callbackAllowedIps = new ArrayList<>();
 }

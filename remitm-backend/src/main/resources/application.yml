@@ -169,6 +169,8 @@ nsano:
   api-key: ${NSANO_API_KEY:}
   scheduler-enabled: ${NSANO_SCHEDULER_ENABLED:true}
   status-poll-interval-ms: ${NSANO_STATUS_POLL_INTERVAL_MS:300000}
+  # IPs NSANO sends callback responses from. Comma-separated; empty disables the check.
+  callback-allowed-ips: ${NSANO_CALLBACK_ALLOWED_IPS:173.255.199.184,66.228.50.160,104.237.142.251}
 
 # Zeepay payout (mobile money / bank / pickup). Bearer JWT supplied via env.
 zeepay:
