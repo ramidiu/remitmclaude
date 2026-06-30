@@ -53,7 +53,17 @@
       "Bash(timeout 30 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 'cat /etc/nginx/sites-enabled/sendmoney.remitm.com')",
       "Bash(timeout 80 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
       "Bash(git add *)",
-      "Bash(git -c core.autocrlf=false diff --cached --stat)"
+      "Bash(git -c core.autocrlf=false diff --cached --stat)",
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(git push *)",
+      "Bash(timeout 60 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
+      "Bash(ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 'bash -s')",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }
