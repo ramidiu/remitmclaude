@@ -42,6 +42,7 @@ import { Component } from '@angular/core';
       <h2>Changes</h2>
       <p>We may update this policy and will post changes here. Continued use of the app means you accept the updated policy.</p>
       <p class="info-muted">Remitm Limited, registered office: 20 Kirkdale Road, London, E11 1HP, United Kingdom. Tel: 020 8556 0888.</p>
+    <p class="info-powered"><a href="https://www.remitz.co.uk/" target="_blank" rel="noopener noreferrer">Powered by Remitz</a></p>
     </div>
   </div></ion-content>`
 })

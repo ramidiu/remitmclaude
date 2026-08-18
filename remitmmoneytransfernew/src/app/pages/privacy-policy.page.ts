@@ -82,6 +82,7 @@ import { Component } from '@angular/core';
       Email: <a href="mailto:info@remitm.com">info@remitm.com</a><br>
       Website: <a href="https://www.remitm.com">www.remitm.com</a></p>
       <p class="info-muted">Remitm Limited is a company registered in England &amp; Wales. Company Registration No: 07956213.</p>
+    <p class="info-powered"><a href="https://www.remitz.co.uk/" target="_blank" rel="noopener noreferrer">Powered by Remitz</a></p>
     </div>
   </div></ion-content>`
 })

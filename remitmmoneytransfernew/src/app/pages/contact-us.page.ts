@@ -38,6 +38,7 @@ import { Component } from '@angular/core';
       <p>Please read our <a href="/privacy-policy">GDPR / Privacy Policy</a> information before submitting your details.</p>
 
       <p class="info-muted">Remitm Limited is a company registered in England &amp; Wales. Company Registration No: 07956213.</p>
+    <p class="info-powered"><a href="https://www.remitz.co.uk/" target="_blank" rel="noopener noreferrer">Powered by Remitz</a></p>
     </div>
   </div></ion-content>`
 })

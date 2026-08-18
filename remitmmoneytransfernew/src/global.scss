@@ -623,6 +623,9 @@ ion-toast:not(.fb-toast) {
 .info-contact-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
 .info-contact-row ion-icon { color: #003377; font-size: 1.2rem; margin-top: 2px; }
 .info-muted { color: #6b7280; font-size: 0.85rem; }
+.info-powered { margin-top: 20px; font-size: 0.8rem; color: #9ca3af; }
+.info-powered a { color: #003377; font-weight: 600; text-decoration: none; }
+.info-powered a:hover { text-decoration: underline; }
 
 /* --- RemitM logo: safety cap so the wordmark never renders oversized, while
    staying clearly visible on auth / brand screens (wordmark ratio ~3.7:1). --- */
