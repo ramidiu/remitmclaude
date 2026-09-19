@@ -62,7 +62,7 @@ public class MaintenanceModeFilter extends OncePerRequestFilter {
 
         String message = systemConfigService.getString(
                 "maintenance.message",
-                "System maintenance is currently in progress. Please try again later.");
+                "System maintenance is currently in progress.");
 
         log.info("Maintenance mode blocked {} {}", method, path);
 
@@ -83,11 +83,10 @@ public class MaintenanceModeFilter extends OncePerRequestFilter {
                 || "OPTIONS".equalsIgnoreCase(method)) {
             return true;
         }
-        // Allow-list covers: auth, admin, super-admin system-config, actuator, swagger, dev.
+        // Allow-list covers: auth, admin, super-admin system-config, actuator, swagger.
         return path.startsWith("/api/auth/")
                 || path.startsWith("/api/admin/")
                 || path.startsWith("/api/users/admin/")
-                || path.startsWith("/api/dev/")
                 || path.startsWith("/actuator/")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/api-docs");
