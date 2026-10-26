@@ -16,11 +16,12 @@ export class KycService {
 
   constructor(private http: HttpClient) {}
 
-  uploadDocument(userId: string, type: string, file: File, documentNumber?: string, issueDate?: string, expiryDate?: string): Observable<KycDocumentResponse> {
+  uploadDocument(userId: string, type: string, file: File, documentNumber?: string, issueDate?: string, expiryDate?: string, side?: 'FRONT' | 'BACK'): Observable<KycDocumentResponse> {
     if (!userId) return of(null as any);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
+    if (side) formData.append('side', side);
     if (documentNumber) formData.append('documentNumber', documentNumber);
     if (issueDate) formData.append('issueDate', issueDate);
     if (expiryDate) formData.append('expiryDate', expiryDate);
@@ -59,9 +60,12 @@ export class KycService {
     });
   }
 
-  /** Direct URL to the document file — for opening in a new browser tab (the endpoint serves
-   *  it inline and does not require a Bearer header, so window.open works without XHR). */
+  /** Direct URL to the document file — for <img>/<iframe> src and opening in a new browser tab.
+   *  The endpoint is now access-controlled; browsers do not attach the Authorization header to
+   *  img/iframe/window.open requests, so the JWT is passed as a ?token= query param instead. */
   getDocumentFileUrl(userId: string, docId: string | number): string {
-    return `${this.baseUrl}/${userId}/kyc/documents/${docId}/file`;
+    const url = `${this.baseUrl}/${userId}/kyc/documents/${docId}/file`;
+    const token = localStorage.getItem('fb_access_token');
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
   }
 }

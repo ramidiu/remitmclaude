@@ -43,7 +43,7 @@ public class SettlementController {
             @RequestBody Map<String, Object> body,
             Authentication authentication) {
         Long partnerId = Long.valueOf(body.get("partnerId").toString());
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         String reference = body.get("notes") != null ? body.get("notes").toString()
                 : (body.get("reference") != null ? body.get("reference").toString() : null);
         String currency = body.get("currency") != null ? body.get("currency").toString() : "USD";
@@ -74,13 +74,14 @@ public class SettlementController {
     }
 
     @PostMapping("/payin-to-admin")
+    @PreAuthorize("hasPermission(null, 'settlement:manage')")
     @Operation(summary = "Initiate pay-in-to-admin settlement")
     public ResponseEntity<ApiResponse<Settlement>> initiatePayinToAdmin(
             @RequestBody Map<String, Object> body,
             Authentication authentication,
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Partner-Id", required = false) Long adminPartnerId) {
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         // Accept either `notes` (admin form) or `reference` (legacy) as the narrative field.
         String reference = body.get("notes") != null ? body.get("notes").toString()
                 : (body.get("reference") != null ? body.get("reference").toString() : null);
@@ -127,7 +128,7 @@ public class SettlementController {
     }
 
     @PutMapping("/{id}/approve")
-    
+    @PreAuthorize("hasPermission(null, 'settlement:manage')")
     @Operation(summary = "Approve settlement and reflect in ledgers")
     public ResponseEntity<ApiResponse<Settlement>> approveSettlement(@PathVariable Long id,
                                                                       Authentication authentication) {
@@ -177,7 +178,7 @@ public class SettlementController {
     }
 
     @PutMapping("/{id}/reject")
-    
+    @PreAuthorize("hasPermission(null, 'settlement:manage')")
     @Operation(summary = "Reject settlement")
     public ResponseEntity<ApiResponse<Settlement>> rejectSettlement(@PathVariable Long id,
                                                                      @RequestBody Map<String, String> body) {
@@ -211,6 +212,7 @@ public class SettlementController {
     }
 
     @GetMapping("/pending")
+    @PreAuthorize("hasPermission(null, 'settlement:manage')")
     @Operation(summary = "Get pending settlements")
     public ResponseEntity<ApiResponse<List<Settlement>>> getPendingSettlements() {
         List<Settlement> settlements = settlementRepository.findByStatusOrderByCreatedAtDesc("PENDING");
@@ -236,5 +238,26 @@ public class SettlementController {
                 .success(true)
                 .data(mine)
                 .build());
+    }
+
+    /**
+     * Validate and parse the {@code amount} field from a settlement request body. Rejects a
+     * missing, non-numeric, zero or negative amount with HTTP 400.
+     */
+    private BigDecimal requirePositiveAmount(Map<String, Object> body) {
+        Object raw = body.get("amount");
+        if (raw == null) {
+            throw new RemitmException("amount is required", HttpStatus.BAD_REQUEST);
+        }
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(raw.toString());
+        } catch (NumberFormatException e) {
+            throw new RemitmException("amount is not a valid number", HttpStatus.BAD_REQUEST);
+        }
+        if (amount.signum() <= 0) {
+            throw new RemitmException("amount must be greater than zero", HttpStatus.BAD_REQUEST);
+        }
+        return amount;
     }
 }

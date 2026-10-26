@@ -33,6 +33,24 @@ export class UserService {
     );
   }
 
+  /** Email change step 1: send a verification code to the NEW email address. */
+  requestEmailChange(newEmail: string): Observable<any> {
+    const user = this.authService.getCurrentUser();
+    const uuid = user?.sub || '';
+    return this.http.post<any>(`${this.baseUrl}/${uuid}/email-change/request`, { newEmail }).pipe(
+      map(res => res.data || res)
+    );
+  }
+
+  /** Email change step 2: verify the OTP sent to the new email and apply the change. */
+  verifyEmailChange(newEmail: string, otp: string): Observable<UserResponse> {
+    const user = this.authService.getCurrentUser();
+    const uuid = user?.sub || '';
+    return this.http.post<any>(`${this.baseUrl}/${uuid}/email-change/verify`, { newEmail, otp }).pipe(
+      map(res => res.data || res)
+    );
+  }
+
   listUsers(params: PageRequest & { search?: string; status?: string; kycTier?: string; kycStatus?: string }): Observable<PageResponse<UserResponse>> {
     let httpParams = new HttpParams();
     if (params.page !== undefined) httpParams = httpParams.set('page', params.page.toString());

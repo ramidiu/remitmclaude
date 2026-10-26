@@ -34,7 +34,7 @@ public class AuthEmailService {
     @Value("${brand.address:}")
     private String brandAddress;
 
-    @Value("${brand.support-email:support@remitm.com}")
+    @Value("${brand.support-email:info@remitm.com}")
     private String brandSupportEmail;
 
     @Value("${brand.logo-url:}")

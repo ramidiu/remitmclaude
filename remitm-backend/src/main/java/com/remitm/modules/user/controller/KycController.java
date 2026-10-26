@@ -51,23 +51,46 @@ public class KycController {
                 .anyMatch(a -> "user:approve_kyc".equals(a.getAuthority()));
     }
 
+    /**
+     * Ownership guard: allow only the document owner (JWT subject resolves to the same user id)
+     * OR a staff member with KYC-approval authority. Prevents one authenticated user from reading
+     * or mutating another user's KYC via the {userId} path variable (IDOR).
+     */
+    private void assertOwnerOrApprover(Long targetUserId) {
+        if (hasApproveKycAuthority()) {
+            return; // staff override
+        }
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String callerUuid = auth != null ? auth.getName() : null;
+        Long callerId = callerUuid != null
+                ? userRepository.findByUuid(callerUuid).map(u -> u.getId()).orElse(null)
+                : null;
+        if (callerId == null || !callerId.equals(targetUserId)) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "Access denied", org.springframework.http.HttpStatus.FORBIDDEN);
+        }
+    }
+
     @Operation(summary = "Upload KYC document", description = "Upload a KYC document for verification")
     @PostMapping(value = "/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<KycDocumentResponse>> uploadDocument(
             @Parameter(description = "User ID") @PathVariable String userId,
             @Parameter(description = "Document type") @RequestParam KycDocumentType type,
+            @Parameter(description = "Document side: FRONT or BACK (two-sided documents only)") @RequestParam(required = false) String side,
             @Parameter(description = "Document number") @RequestParam(required = false) String documentNumber,
             @Parameter(description = "Document file") @RequestParam MultipartFile file,
             @RequestParam(required = false) String issueDate,
             @RequestParam(required = false) String expiryDate,
             HttpServletRequest request) {
+        assertOwnerOrApprover(resolveUserId(userId));
         String ipAddress = getClientIpAddress(request);
         LocalDate parsedIssueDate = issueDate != null ? LocalDate.parse(issueDate) : null;
         LocalDate parsedExpiryDate = expiryDate != null ? LocalDate.parse(expiryDate) : null;
         // If an admin (has KYC-approval authority) uploads on the user's behalf, auto-approve
         // so the user is verified + activated immediately. Self-uploads stay PENDING for review.
         boolean autoApprove = hasApproveKycAuthority();
-        KycDocumentResponse response = kycService.uploadDocument(resolveUserId(userId), type, documentNumber, file, ipAddress, parsedIssueDate, parsedExpiryDate, autoApprove);
+        KycDocumentResponse response = kycService.uploadDocument(resolveUserId(userId), type, side, documentNumber, file, ipAddress, parsedIssueDate, parsedExpiryDate, autoApprove);
         return ResponseEntity.ok(ApiResponse.<KycDocumentResponse>builder()
                 .success(true)
                 .data(response)
@@ -79,6 +102,7 @@ public class KycController {
     @GetMapping("/documents")
     public ResponseEntity<ApiResponse<List<KycDocumentResponse>>> getDocuments(
             @Parameter(description = "User ID") @PathVariable String userId) {
+        assertOwnerOrApprover(resolveUserId(userId));
         List<KycDocumentResponse> documents = kycService.getDocuments(resolveUserId(userId));
         return ResponseEntity.ok(ApiResponse.<List<KycDocumentResponse>>builder()
                 .success(true)
@@ -93,6 +117,7 @@ public class KycController {
     public ResponseEntity<ApiResponse<Void>> deleteDocument(
             @Parameter(description = "User ID") @PathVariable String userId,
             @Parameter(description = "Document ID") @PathVariable Long documentId) {
+        assertOwnerOrApprover(resolveUserId(userId));
         kycService.deletePendingDocument(resolveUserId(userId), documentId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true)
@@ -128,6 +153,7 @@ public class KycController {
     public ResponseEntity<ApiResponse<Void>> triggerVerification(
             @Parameter(description = "User ID") @PathVariable String userId,
             @Parameter(description = "Verification type") @RequestParam VerificationType type) {
+        assertOwnerOrApprover(resolveUserId(userId));
         kycService.triggerVerification(resolveUserId(userId), type);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true)
@@ -139,6 +165,7 @@ public class KycController {
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<KycStatusResponse>> getKycStatus(
             @Parameter(description = "User ID") @PathVariable String userId) {
+        assertOwnerOrApprover(resolveUserId(userId));
         KycStatusResponse status = kycService.getKycStatus(resolveUserId(userId));
         return ResponseEntity.ok(ApiResponse.<KycStatusResponse>builder()
                 .success(true)
@@ -152,6 +179,7 @@ public class KycController {
     public ResponseEntity<ApiResponse<List<ScreeningResponse>>> screenPepSanctions(
             @Parameter(description = "User ID") @PathVariable String userId,
             HttpServletRequest request) {
+        assertOwnerOrApprover(resolveUserId(userId));
         String ipAddress = getClientIpAddress(request);
         List<ScreeningResponse> responses = kycService.screenPepSanctions(resolveUserId(userId), ipAddress);
         return ResponseEntity.ok(ApiResponse.<List<ScreeningResponse>>builder()
@@ -166,6 +194,7 @@ public class KycController {
             @PathVariable String userId,
             @PathVariable Long docId) {
         Long resolvedUserId = resolveUserId(userId);
+        assertOwnerOrApprover(resolvedUserId);
         KycDocumentEntity doc = kycService.getDocumentEntity(docId);
         if (doc == null || !doc.getUserId().equals(resolvedUserId)) {
             return ResponseEntity.notFound().build();

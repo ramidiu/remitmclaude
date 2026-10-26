@@ -2,6 +2,8 @@ export interface KycDocumentResponse {
   id: string;
   userId: string;
   documentType: KycDocumentType;
+  // "FRONT" / "BACK" for two-sided documents; undefined for single-file documents.
+  documentSide?: string;
   fileName: string;
   fileUrl: string;
   status: KycDocumentStatus;
@@ -29,6 +31,9 @@ export interface KycStatusResponse {
   documentsApproved: string[];
   documentsRejected: string[];
   overallStatus: string;
+  // True when an address change forces the customer to re-upload address + identity documents.
+  reuploadRequired?: boolean;
+  reuploadReason?: string;
 }
 
 export interface KycReviewRequest {

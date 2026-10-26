@@ -111,6 +111,19 @@ public class UserEntity {
     @Builder.Default
     private Boolean passwordChangeRequired = false;
 
+    /** True when the customer must re-upload proof-of-address + identity documents
+     *  (set when they change their address). Persisted so the requirement is re-enforced
+     *  on every login until the documents are re-submitted, then cleared. */
+    @Column(name = "kyc_reupload_required", nullable = false)
+    @Builder.Default
+    private Boolean kycReuploadRequired = false;
+
+    @Column(name = "kyc_reupload_reason", length = 100)
+    private String kycReuploadReason;
+
+    @Column(name = "kyc_reupload_requested_at")
+    private LocalDateTime kycReuploadRequestedAt;
+
     @Column(length = 100)
     private String nationality;
 

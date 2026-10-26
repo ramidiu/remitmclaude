@@ -847,6 +847,14 @@ public class TransactionService {
         return mapToResponse(tx, beneficiaryName);
     }
 
+    /** Owner (sender) user id for a transaction — used by controllers for ownership/IDOR checks. */
+    @Transactional(readOnly = true)
+    public Long getTransactionOwnerId(Long id) {
+        return transactionRepository.findById(id)
+                .map(TransactionEntity::getSenderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
+    }
+
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionByReference(String referenceNumber) {
         TransactionEntity tx = transactionRepository.findByReferenceNumber(referenceNumber)

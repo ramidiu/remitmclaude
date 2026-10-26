@@ -7,6 +7,7 @@ import com.remitm.modules.payout.zeepay.service.ZeepayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -25,6 +26,7 @@ public class ZeepayController {
 
     /** Initiate a wallet / bank / pickup disbursement for an existing transaction. */
     @PostMapping("/initiate")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<?> initiate(@RequestBody ZeepayInitiateRequest request) {
         try {
             ZeepayInitiateResponse response = zeepayService.initiatePayout(request);
@@ -50,6 +52,7 @@ public class ZeepayController {
      * Used by the payout-partner portal's "Pay via Zeepay" action.
      */
     @PostMapping("/disburse/{referenceNumber}")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<?> disburse(@PathVariable String referenceNumber) {
         try {
             ZeepayInitiateResponse response = zeepayService.disburse(referenceNumber);
@@ -68,6 +71,7 @@ public class ZeepayController {
 
     /** Poll the latest Zeepay status for the given internal transaction reference. */
     @PostMapping("/status")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<?> status(@RequestBody Map<String, String> body) {
         String referenceNumber = body.get("referenceNumber");
         if (referenceNumber == null || referenceNumber.isBlank()) {

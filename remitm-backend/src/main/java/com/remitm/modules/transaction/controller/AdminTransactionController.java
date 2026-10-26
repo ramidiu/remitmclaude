@@ -353,16 +353,17 @@ public class AdminTransactionController {
         TransactionEntity tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
 
-        // RULE (Pay-In stage, independent): ACTIVE → partner handles, INACTIVE → admin handles.
+        // Admin may always confirm funds received on a PENDING/CREATED transaction so it can be
+        // routed to the payout queue ("irrespective of everything"). Previously an ACTIVE pay-in
+        // partner blocked this with a FORBIDDEN error; that guard is intentionally relaxed. We still
+        // log when an active pay-in partner owns the transaction so the manual override is auditable.
         if (tx.getPayinPartnerId() != null) {
             PayinPartner p = payinPartnerRepository.findById(tx.getPayinPartnerId()).orElse(null);
             boolean payinPartnerActive = p != null && Boolean.TRUE.equals(p.getIsActive());
             if (payinPartnerActive) {
-                throw new RemitmException(
-                        "Pay-in partner is ACTIVE and handling this transaction. Admin cannot act.",
-                        HttpStatus.FORBIDDEN);
+                log.warn("Admin manually marking funds received on {} despite ACTIVE pay-in partner {}",
+                        tx.getReferenceNumber(), tx.getPayinPartnerId());
             }
-            // Partner is INACTIVE → admin handles (fall through).
         }
 
         // Validate status
@@ -418,6 +419,14 @@ public class AdminTransactionController {
             log.warn("Failed to create platform/partner ledger entries for transaction {}: {}",
                     updated.getId(), e.getMessage());
         }
+
+        // Advance PROCESSING -> FUNDS_RECEIVED so the corridor's payout gateway (e.g. Nsano) picks it up.
+        // Reaching FUNDS_RECEIVED publishes PayoutReadyEvent: with payout.auto-disburse-enabled=false
+        // (prod default) the transaction simply surfaces in the Gateway Ops "To Dispatch" queue for a
+        // manual Dispatch click; with the flag on it would auto-disburse. Without this step the admin
+        // funds-received action dead-ends at PROCESSING and never reaches the payout stage.
+        updated = stateMachine.transition(updated, TransactionStatus.FUNDS_RECEIVED, 0L, ActorType.ADMIN,
+                "Funds received - routed to payout");
 
         // Publish Redis event
         redisPublisher.publishTransactionEvent("FUNDS_RECEIVED", Map.of(

@@ -62,16 +62,28 @@ public class KycService {
                                                String ipAddress, java.time.LocalDate issueDate,
                                                java.time.LocalDate expiryDate,
                                                boolean autoApprove) {
+        return uploadDocument(userId, type, null, documentNumber, file, ipAddress, issueDate, expiryDate, autoApprove);
+    }
+
+    @Transactional
+    public KycDocumentResponse uploadDocument(Long userId, KycDocumentType type, String documentSideRaw,
+                                               String documentNumber, MultipartFile file,
+                                               String ipAddress, java.time.LocalDate issueDate,
+                                               java.time.LocalDate expiryDate,
+                                               boolean autoApprove) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         validateFile(file);
 
-        // OVERRIDE-ON-UPLOAD: a re-upload of this document type replaces the previous
-        // PENDING submission of the same type (deletes the old row + its file), so only the
-        // LATEST document ever awaits admin review. Approved/Rejected history is left intact —
-        // superseding a verified copy belongs to the separate re-verification flow.
-        supersedePreviousPending(userId, type, ipAddress);
+        // Normalize the side: FRONT / BACK for two-sided documents, null for single-file documents.
+        String documentSide = normalizeSide(documentSideRaw);
+
+        // OVERRIDE-ON-UPLOAD: a re-upload replaces the previous PENDING submission of the same type
+        // AND SAME SIDE (deletes the old row + its file), so only the LATEST document of each side
+        // ever awaits admin review. Keying on side means FRONT and BACK no longer supersede each
+        // other — both are kept. Approved/Rejected history is left intact.
+        supersedePreviousPending(userId, type, documentSide, ipAddress);
 
         String fileHash = calculateSha256(file);
         String savedFilePath = saveFile(userId, type, file);
@@ -81,6 +93,7 @@ public class KycService {
         KycDocumentEntity document = KycDocumentEntity.builder()
                 .userId(userId)
                 .documentType(type)
+                .documentSide(documentSide)
                 .documentNumber(documentNumber)
                 .filePath(savedFilePath)
                 .fileHash(fileHash)
@@ -142,7 +155,43 @@ public class KycService {
                     userId, previousTier, saved.getId());
         }
 
+        // ADDRESS-CHANGE RE-UPLOAD: clear the forced-re-upload requirement once BOTH an identity
+        // document AND a proof-of-address have been re-submitted since it was requested. Until then
+        // the frontend guard keeps forcing the customer back to the upload page on every login.
+        if (Boolean.TRUE.equals(user.getKycReuploadRequired())) {
+            maybeClearReuploadRequirement(user);
+        }
+
         return toDocumentResponse(saved);
+    }
+
+    /** Clear the address-change re-upload requirement when both required document types have been
+     *  re-submitted (created at/after the request time). */
+    private void maybeClearReuploadRequirement(UserEntity user) {
+        LocalDateTime since = user.getKycReuploadRequestedAt();
+        List<KycDocumentEntity> docs = kycDocumentRepository.findByUserId(user.getId());
+        boolean hasFreshIdentity = docs.stream().anyMatch(d ->
+                isIdentityType(d.getDocumentType()) && isFreshUpload(d, since));
+        boolean hasFreshAddress = docs.stream().anyMatch(d ->
+                d.getDocumentType() == KycDocumentType.PROOF_OF_ADDRESS && isFreshUpload(d, since));
+        if (hasFreshIdentity && hasFreshAddress) {
+            user.setKycReuploadRequired(false);
+            user.setKycReuploadReason(null);
+            user.setKycReuploadRequestedAt(null);
+            userRepository.save(user);
+            log.info("KYC re-upload requirement cleared for user {} — address + identity re-submitted", user.getId());
+        }
+    }
+
+    private boolean isFreshUpload(KycDocumentEntity d, LocalDateTime since) {
+        if (since == null) return true;
+        return d.getCreatedAt() != null && !d.getCreatedAt().isBefore(since);
+    }
+
+    private boolean isIdentityType(KycDocumentType t) {
+        return t == KycDocumentType.PASSPORT
+                || t == KycDocumentType.DRIVING_LICENCE
+                || t == KycDocumentType.NATIONAL_ID;
     }
 
     @Transactional(readOnly = true)
@@ -200,10 +249,18 @@ public class KycService {
      * the previous pending submission. Only PENDING docs are touched — Approved/Rejected
      * documents are preserved as history. Best-effort file deletion (an orphan is harmless).
      */
-    private void supersedePreviousPending(Long userId, KycDocumentType type, String ipAddress) {
+    /** FRONT / BACK (uppercased) for two-sided documents; null for anything else. */
+    private String normalizeSide(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim().toUpperCase();
+        return (s.equals("FRONT") || s.equals("BACK")) ? s : null;
+    }
+
+    private void supersedePreviousPending(Long userId, KycDocumentType type, String side, String ipAddress) {
         List<KycDocumentEntity> priorPending = kycDocumentRepository
                 .findByUserIdAndStatus(userId, KycDocumentStatus.PENDING).stream()
-                .filter(d -> d.getDocumentType() == type)
+                .filter(d -> d.getDocumentType() == type
+                        && java.util.Objects.equals(normalizeSide(d.getDocumentSide()), side))
                 .collect(Collectors.toList());
 
         for (KycDocumentEntity old : priorPending) {
@@ -397,6 +454,8 @@ public class KycService {
                 .documents(documentResponses)
                 .verifications(verificationDescriptions)
                 .nextTierRequirements(nextTierRequirements)
+                .reuploadRequired(Boolean.TRUE.equals(user.getKycReuploadRequired()))
+                .reuploadReason(user.getKycReuploadReason())
                 .build();
     }
 
@@ -713,14 +772,17 @@ public class KycService {
      * older "previously approved" copies preserved for reference.
      */
     private List<KycDocumentResponse> toResponsesWithLatest(List<KycDocumentEntity> docs) {
-        java.util.Map<KycDocumentType, KycDocumentEntity> newestByType = new java.util.HashMap<>();
+        // Newest is tracked per (type + side) so a document's FRONT and BACK are BOTH flagged latest
+        // (they are different sides, not versions of each other).
+        java.util.Map<String, KycDocumentEntity> newestByTypeSide = new java.util.HashMap<>();
         for (KycDocumentEntity d : docs) {
-            KycDocumentEntity cur = newestByType.get(d.getDocumentType());
+            String key = d.getDocumentType() + "|" + normalizeSide(d.getDocumentSide());
+            KycDocumentEntity cur = newestByTypeSide.get(key);
             if (cur == null || isNewer(d, cur)) {
-                newestByType.put(d.getDocumentType(), d);
+                newestByTypeSide.put(key, d);
             }
         }
-        java.util.Set<Long> latestIds = newestByType.values().stream()
+        java.util.Set<Long> latestIds = newestByTypeSide.values().stream()
                 .map(KycDocumentEntity::getId)
                 .collect(Collectors.toSet());
         return docs.stream().map(d -> {
@@ -743,6 +805,7 @@ public class KycService {
         return KycDocumentResponse.builder()
                 .id(entity.getId())
                 .documentType(entity.getDocumentType())
+                .documentSide(entity.getDocumentSide())
                 .documentNumber(entity.getDocumentNumber())
                 .filePath(entity.getFilePath())
                 .status(entity.getStatus())

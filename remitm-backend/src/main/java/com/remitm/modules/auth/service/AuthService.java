@@ -110,6 +110,21 @@ public class AuthService {
     @org.springframework.beans.factory.annotation.Value("${app.frontend-url:https://remitm.com}")
     private String frontendUrl;
 
+    // Code added: System Controls — these security limits are now driven at runtime by the
+    // superadmin System Controls (system_config), falling back to the application.yml
+    // (app.security.*) / @Value defaults when the config row is absent.
+    private int maxLoginAttempts() {
+        return systemConfigService.getInt("security.max_login_attempts", securityProperties.getMaxLoginAttempts());
+    }
+
+    private int lockoutDurationMinutes() {
+        return systemConfigService.getInt("security.lockout_duration_minutes", securityProperties.getLockoutDurationMinutes());
+    }
+
+    private boolean enforceStaffMfa() {
+        return systemConfigService.getBoolean("security.mfa.enforce_staff", enforceStaffMfa);
+    }
+
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         // Code added by Naresh: Read runtime control from system_config with safe fallback.
@@ -231,10 +246,10 @@ public class AuthService {
         String attemptsStr = stringRedisTemplate.opsForValue().get(attemptsKey);
         int attempts = attemptsStr != null ? Integer.parseInt(attemptsStr) : 0;
 
-        if (attempts >= securityProperties.getMaxLoginAttempts()) {
+        if (attempts >= maxLoginAttempts()) {
             auditService.logLogin(null, email, null, "LOGIN_FAILED", ipAddress, userAgent);
             throw new IllegalStateException("Account is temporarily locked due to too many failed login attempts. " +
-                    "Please try again after " + securityProperties.getLockoutDurationMinutes() + " minutes.");
+                    "Please try again after " + lockoutDurationMinutes() + " minutes.");
         }
 
         // Find user
@@ -298,7 +313,7 @@ public class AuthService {
         boolean isStaff = user.getRoles().stream()
                 .map(RoleEntity::getName)
                 .anyMatch(STAFF_ROLES::contains);
-        if (enforceStaffMfa && isStaff && !Boolean.TRUE.equals(user.getMfaEnabled())) {
+        if (enforceStaffMfa() && isStaff && !Boolean.TRUE.equals(user.getMfaEnabled())) {
             String secret = totpService.generateSecret();
             String qrCodeUri = totpService.generateQrCodeDataUri(secret, email);
             auditService.logLogin(user.getId(), email, primaryRoleName(user),
@@ -605,10 +620,10 @@ public class AuthService {
         String attemptsStr = stringRedisTemplate.opsForValue().get(attemptsKey);
         int attempts = attemptsStr != null ? Integer.parseInt(attemptsStr) : 0;
 
-        if (attempts >= securityProperties.getMaxLoginAttempts()) {
+        if (attempts >= maxLoginAttempts()) {
             auditService.logLogin(null, email, null, "ADMIN_LOGIN_FAILED", ipAddress, userAgent);
             throw new IllegalStateException("Account is temporarily locked due to too many failed login attempts. " +
-                    "Please try again after " + securityProperties.getLockoutDurationMinutes() + " minutes.");
+                    "Please try again after " + lockoutDurationMinutes() + " minutes.");
         }
 
         // Find user
@@ -908,7 +923,7 @@ public class AuthService {
 
     private void incrementLoginAttempts(String attemptsKey) {
         stringRedisTemplate.opsForValue().increment(attemptsKey);
-        stringRedisTemplate.expire(attemptsKey, securityProperties.getLockoutDurationMinutes(), TimeUnit.MINUTES);
+        stringRedisTemplate.expire(attemptsKey, lockoutDurationMinutes(), TimeUnit.MINUTES);
     }
 
     private Set<String> collectPermissions(UserEntity user) {

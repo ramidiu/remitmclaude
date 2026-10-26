@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Compliance Internal", description = "Internal service-to-service compliance APIs")
+@PreAuthorize("hasAuthority('config:manage_system')")
 public class InternalComplianceController {
 
     private final SanctionsScreeningService sanctionsScreeningService;

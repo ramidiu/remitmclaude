@@ -34,6 +34,13 @@ export class RequireKycSubmittedGuard implements CanActivate {
       const status: any = await firstValueFrom(
         this.kycService.getStatus(user.sub).pipe(retry(1))
       );
+      // ADDRESS-CHANGE RE-UPLOAD: an address change forces re-upload of address + identity.
+      // This persists server-side, so it re-enforces on EVERY login until both are re-submitted —
+      // if the customer closes/skips the upload, they are brought right back here next time.
+      if (status?.reuploadRequired === true) {
+        this.router.navigate(['/home/kyc'], { queryParams: { reupload: 'true' } });
+        return false;
+      }
       // PARTIAL = legacy/imported customer with no real submission — treat like NOT_SUBMITTED:
       // they are email/mobile-verified and can log in, but must complete document + address KYC.
       if (status?.overallStatus === 'NOT_SUBMITTED' || status?.overallStatus === 'PARTIAL') {

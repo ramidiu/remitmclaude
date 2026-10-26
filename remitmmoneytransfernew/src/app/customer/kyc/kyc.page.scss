@@ -547,3 +547,17 @@
     line-height: 1.5;
   }
 }
+
+/* Forced re-upload banner shown after an address change (query param reupload=true). */
+.kyc-reupload-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fff4e5;
+  border: 1px solid #ffd8a8;
+  border-left: 4px solid #f59f00;
+  color: #7a4d00;
+  ion-icon { font-size: 26px; color: #f59f00; flex-shrink: 0; }
+  h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+  p { margin: 0; font-size: 13px; line-height: 1.45; }
+}

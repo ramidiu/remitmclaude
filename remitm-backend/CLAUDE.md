@@ -14,7 +14,7 @@ Java 17, Spring Boot 3.2.3, Spring Security, MySQL 8.0, Redis 7, Flyway, JJWT 0.
 ```yaml
 brand:
   name: Remitm Money Transfer
-  support-email: support@remitm.com
+  support-email: info@remitm.com
   frontend-url: https://remitm.com
 ```
 

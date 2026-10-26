@@ -240,9 +240,11 @@
                 <option value="" disabled>{{ 'BENEFICIARIES.SELECT_WALLET_PROVIDER' | translate }}</option>
                 <option *ngFor="let wallet of mobileWallets" [value]="wallet.serviceName">{{ wallet.serviceName }}</option>
               </select>
-              <input *ngIf="mobileWallets.length === 0" type="text" class="fb-input" formControlName="mobileProvider"
-                placeholder="Enter mobile network (e.g. MTN, Airtel)"
-                [class.fb-input--error]="(addFormSubmitted || addForm.get('mobileProvider')?.touched) && addForm.get('mobileProvider')?.invalid" />
+              <select *ngIf="mobileWallets.length === 0" class="fb-input fb-native-select" formControlName="mobileProvider"
+                [class.fb-input--error]="(addFormSubmitted || addForm.get('mobileProvider')?.touched) && addForm.get('mobileProvider')?.invalid">
+                <option value="" disabled>{{ 'BENEFICIARIES.SELECT_WALLET_PROVIDER' | translate }}</option>
+                <option *ngFor="let net of mobileNetworkOptions" [value]="net">{{ net }}</option>
+              </select>
               <div class="fb-field__error" *ngIf="(addFormSubmitted || addForm.get('mobileProvider')?.touched) && addForm.get('mobileProvider')?.hasError('required')">
                 {{ 'BENEFICIARIES.MOBILE_PROVIDER' | translate }} {{ 'BENEFICIARIES.ERROR_REQUIRED' | translate }}
               </div>

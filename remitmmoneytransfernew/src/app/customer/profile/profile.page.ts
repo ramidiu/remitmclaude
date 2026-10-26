@@ -25,6 +25,13 @@ export class ProfilePage implements OnInit, OnDestroy {
   editForm!: FormGroup;
   saving = false;
 
+  // Email change (OTP to the new address)
+  showEmailModal = false;
+  emailStep: 'enter' | 'otp' = 'enter';
+  newEmail = '';
+  emailOtp = '';
+  emailChanging = false;
+
   showNotificationPrefs = false;
   notifPrefs: NotificationPreferences = {
     rateAlerts: true,
@@ -287,6 +294,10 @@ export class ProfilePage implements OnInit, OnDestroy {
     this.showEditModal = false;
   }
 
+  private norm(v: any): string {
+    return (v === null || v === undefined ? '' : String(v)).trim();
+  }
+
   async onSaveProfile(): Promise<void> {
     if (this.editForm.invalid || this.saving) return;
     this.saving = true;
@@ -302,16 +313,88 @@ export class ProfilePage implements OnInit, OnDestroy {
       postcode: val.postcode || ''
     };
 
+    // Detect whether the customer changed their address — the backend then forces a re-upload
+    // of proof-of-address + identity, and we route them straight to the KYC upload page.
+    const addressChanged =
+      this.norm(val.addressLine1) !== this.norm(this.user?.addressLine1) ||
+      this.norm(val.city) !== this.norm(this.user?.city) ||
+      this.norm(val.postcode) !== this.norm(this.user?.postcode);
+
     this.userService.updateProfile(request).subscribe({
       next: () => {
         this.saving = false;
         this.showEditModal = false;
+        if (addressChanged) {
+          this.showToast('Because you changed your address, you must re-upload your proof of address and identity documents. Your account will be reviewed again.', 'warning');
+          this.router.navigate(['/home/kyc'], { queryParams: { reupload: 'true' } });
+          return;
+        }
         this.showToast('Profile saved. Your account is now pending admin review before you can send money.', 'warning');
         this.loadProfile();
       },
       error: (err) => {
         this.saving = false;
         this.showToast(err.error?.message || 'Failed to update profile', 'danger');
+      }
+    });
+  }
+
+  // --- Change email (verify OTP sent to the NEW email) ---
+
+  openEmailChange(): void {
+    this.newEmail = '';
+    this.emailOtp = '';
+    this.emailStep = 'enter';
+    this.showEmailModal = true;
+  }
+
+  closeEmailChange(): void {
+    this.showEmailModal = false;
+  }
+
+  sendEmailOtp(): void {
+    const email = this.norm(this.newEmail);
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRe.test(email)) {
+      this.showToast('Please enter a valid email address', 'danger');
+      return;
+    }
+    if (email.toLowerCase() === this.norm(this.user?.email).toLowerCase()) {
+      this.showToast('That is already your current email address', 'danger');
+      return;
+    }
+    this.emailChanging = true;
+    this.userService.requestEmailChange(email).subscribe({
+      next: () => {
+        this.emailChanging = false;
+        this.emailStep = 'otp';
+        this.showToast('We sent a 6-digit code to your new email address.', 'success');
+      },
+      error: (err) => {
+        this.emailChanging = false;
+        this.showToast(err.error?.message || 'Failed to send verification code', 'danger');
+      }
+    });
+  }
+
+  verifyEmailOtp(): void {
+    const email = this.norm(this.newEmail);
+    const otp = this.norm(this.emailOtp);
+    if (otp.length < 6) {
+      this.showToast('Enter the 6-digit code sent to your new email', 'danger');
+      return;
+    }
+    this.emailChanging = true;
+    this.userService.verifyEmailChange(email, otp).subscribe({
+      next: () => {
+        this.emailChanging = false;
+        this.showEmailModal = false;
+        this.showToast('Your email address has been updated.', 'success');
+        this.loadProfile();
+      },
+      error: (err) => {
+        this.emailChanging = false;
+        this.showToast(err.error?.message || 'Invalid or expired code', 'danger');
       }
     });
   }

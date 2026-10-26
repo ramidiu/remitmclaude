@@ -11,6 +11,15 @@ services:
   backend:
     ports: !override
       - "8097:8080"
+    # The local frontend is served on :8098 (remapped below). The backend's CORS allow-list
+    # includes app.frontend-url, so pointing FRONTEND_URL at :8098 lets the browser at :8098
+    # call the API. Without this, preflight returns 403 and the UI shows a misleading
+    # "invalid email or password" on login (the response is CORS-blocked, not rejected).
+    environment:
+      - FRONTEND_URL=http://localhost:8098
+      # Option B (manual dispatch): funds-received routes to the "To Dispatch" queue but does NOT
+      # auto-send to Nsano — a human clicks Dispatch. Matches prod (.env.production).
+      - PAYOUT_AUTO_DISBURSE_ENABLED=false
   frontend:
     ports: !override
       - "8098:80"

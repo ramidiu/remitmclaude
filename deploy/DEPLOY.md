@@ -149,7 +149,7 @@ Environment=KYC_UPLOAD_DIR=/var/www/remitm/data/kyc-uploads
 
 # Brand
 Environment=BRAND_NAME=Remitm Money Transfer
-Environment=BRAND_SUPPORT_EMAIL=support@remitm.com
+Environment=BRAND_SUPPORT_EMAIL=info@remitm.com
 Environment=FRONTEND_URL=https://test.remitm.com
 
 # Email (Brevo)

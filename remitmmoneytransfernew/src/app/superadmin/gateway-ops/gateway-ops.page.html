@@ -37,6 +37,7 @@
   <div class="gw-toolbar">
     <div class="gw-tabs">
       <button class="gw-tab" [class.gw-tab--active]="scope==='all'" (click)="setScope('all')">All</button>
+      <button class="gw-tab" [class.gw-tab--active]="scope==='fundsreceived'" (click)="setScope('fundsreceived')">To Dispatch<span *ngIf="summary?.toDispatch"> ({{ summary.toDispatch }})</span></button>
       <button class="gw-tab" [class.gw-tab--active]="scope==='pending'" (click)="setScope('pending')">Pending</button>
       <button class="gw-tab" [class.gw-tab--active]="scope==='done'" (click)="setScope('done')">Completed</button>
       <button class="gw-tab" [class.gw-tab--active]="scope==='cancelled'" (click)="setScope('cancelled')">Cancelled / Failed</button>
@@ -77,7 +78,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of rows">
+          <tr *ngFor="let row of rows" class="gw-row" (click)="openDetails(row)" title="View transaction details">
             <td class="mono">{{ row.referenceNumber }}</td>
             <td>{{ row.beneficiaryName || '—' }}</td>
             <td class="fb-currency">{{ row.receiveAmount | number:'1.2-2' }} {{ row.receiveCurrency }}</td>
@@ -91,10 +92,15 @@
               </span>
             </td>
             <td>{{ row.createdAt | date:'MMM d, y HH:mm' }}</td>
-            <td>
-              <!-- Action is driven by the row's CURRENT status, so "Check Status" appears for in-flight
-                   payouts in any tab; terminal rows are read-only. -->
-              <button *ngIf="isActionable(row.status)" class="action-btn action-btn--check" (click)="checkStatus(row)" [disabled]="row._busy" [title]="'Get the real status from ' + title">
+            <!-- Buttons must not trigger the row's details click. -->
+            <td (click)="$event.stopPropagation()">
+              <!-- FUNDS_RECEIVED → admin clicks "Pay Now" to send the amount (nothing auto-pays).
+                   In-flight payouts show "Check Status"; terminal rows are read-only. -->
+              <button *ngIf="isDispatchable(row.status)" class="action-btn action-btn--success" (click)="dispatch(row)" [disabled]="row._busy" title="Pay this payout now">
+                <ion-icon name="card-outline"></ion-icon>
+                {{ row._busy ? '…' : 'Pay Now' }}
+              </button>
+              <button *ngIf="!isDispatchable(row.status) && isActionable(row.status)" class="action-btn action-btn--check" (click)="checkStatus(row)" [disabled]="row._busy" [title]="'Get the real status from ' + title">
                 <ion-icon name="sync-outline"></ion-icon>
                 {{ row._busy ? '…' : 'Check Status' }}
               </button>
@@ -117,6 +123,39 @@
           <button class="fb-btn fb-btn--secondary" [disabled]="page === 0" (click)="goPage(-1)">‹ Prev</button>
           <button class="fb-btn fb-btn--secondary" [disabled]="page + 1 >= totalPages" (click)="goPage(1)">Next ›</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction details drawer (click a row to open) -->
+  <div class="gw-drawer-overlay" *ngIf="selectedRow" (click)="closeDetails()">
+    <div class="gw-drawer" (click)="$event.stopPropagation()">
+      <div class="gw-drawer__head">
+        <h3>Transaction details</h3>
+        <button class="gw-drawer__close" (click)="closeDetails()"><ion-icon name="close-outline"></ion-icon></button>
+      </div>
+      <div class="gw-drawer__body">
+        <div class="gw-drawer__row"><span>Reference</span><b class="mono">{{ selectedRow.referenceNumber }}</b></div>
+        <div class="gw-drawer__row"><span>Status</span>
+          <b><span class="status-badge"
+                   [class.status-badge--done]="selectedRow.status==='PAID' || selectedRow.status==='COMPLETED' || selectedRow.status==='ARCHIVED'"
+                   [class.status-badge--bad]="selectedRow.status==='CANCELLED' || selectedRow.status==='FAILED' || selectedRow.status==='REFUNDED'">{{ selectedRow.status }}</span></b></div>
+        <div class="gw-drawer__row"><span>Amount</span><b>{{ selectedRow.receiveAmount | number:'1.2-2' }} {{ selectedRow.receiveCurrency }}</b></div>
+        <div class="gw-drawer__row"><span>Beneficiary</span><b>{{ selectedRow.beneficiaryName || '—' }}</b></div>
+        <div class="gw-drawer__row"><span>Method</span><b>{{ selectedRow.deliveryMethod }}</b></div>
+        <div class="gw-drawer__row" *ngIf="selectedRow.beneficiaryBankName"><span>Bank</span><b>{{ selectedRow.beneficiaryBankName }}</b></div>
+        <div class="gw-drawer__row" *ngIf="selectedRow.beneficiaryAccountNumber"><span>Account</span><b class="mono">{{ selectedRow.beneficiaryAccountNumber }}</b></div>
+        <div class="gw-drawer__row" *ngIf="selectedRow.beneficiaryMobileNumber"><span>Mobile</span><b class="mono">{{ selectedRow.beneficiaryMobileNumber }}</b></div>
+        <div class="gw-drawer__row"><span>{{ title }} Ref</span><b class="mono">{{ selectedRow.providerRef || '—' }}</b></div>
+        <div class="gw-drawer__row"><span>Created</span><b>{{ selectedRow.createdAt | date:'MMM d, y HH:mm' }}</b></div>
+      </div>
+      <div class="gw-drawer__actions">
+        <button *ngIf="isDispatchable(selectedRow.status)" class="fb-btn fb-btn--primary" (click)="dispatch(selectedRow)" [disabled]="selectedRow._busy">
+          <ion-icon name="card-outline"></ion-icon> {{ selectedRow._busy ? 'Paying…' : 'Pay Now' }}
+        </button>
+        <button class="fb-btn fb-btn--secondary" (click)="checkStatus(selectedRow)" [disabled]="selectedRow._busy" title="Pull the live status from the provider">
+          <ion-icon name="sync-outline"></ion-icon> {{ selectedRow._busy ? '…' : 'Refresh Status' }}
+        </button>
       </div>
     </div>
   </div>

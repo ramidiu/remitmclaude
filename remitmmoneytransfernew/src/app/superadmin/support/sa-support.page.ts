@@ -177,7 +177,8 @@ export class SASupportPage implements OnInit {
     if (att.url.startsWith('http')) return att.url;
     // att.url is like "/api/support/attachments/1/file" — prepend gateway base
     const base = environment.apiUrl.replace(/\/api$/, '');
-    return base + att.url;
+    const token = localStorage.getItem('fb_access_token');
+    return base + att.url + (token ? `?token=${encodeURIComponent(token)}` : '');
   }
 
   isImage(att: any): boolean {

@@ -14,10 +14,13 @@ import java.util.concurrent.TimeUnit;
 public class OtpService {
 
     private static final String OTP_PREFIX = "otp:";
-    private static final long OTP_TTL_MINUTES = 10;
+    private static final int DEFAULT_OTP_TTL_MINUTES = 10;
     private static final Random RANDOM = new Random();
 
     private final StringRedisTemplate stringRedisTemplate;
+    // System Controls: OTP lifetime is driven at runtime by the superadmin (system_config key
+    // OTP_TTL_MINUTES), falling back to the 10-minute default when the config row is absent.
+    private final com.remitm.modules.user.service.SystemConfigService systemConfigService;
 
     public String generateOtp() {
         int otp = 100000 + RANDOM.nextInt(900000);
@@ -26,9 +29,9 @@ public class OtpService {
 
     public void storeOtp(String email, String otp) {
         String key = OTP_PREFIX + email;
-        stringRedisTemplate.opsForValue().set(key, otp, OTP_TTL_MINUTES, TimeUnit.MINUTES);
-        log.debug("OTP stored for email: {}", email);
-      
+        int ttlMinutes = systemConfigService.getInt("OTP_TTL_MINUTES", DEFAULT_OTP_TTL_MINUTES);
+        stringRedisTemplate.opsForValue().set(key, otp, ttlMinutes, TimeUnit.MINUTES);
+        log.debug("OTP stored for email: {} (ttl={}m)", email, ttlMinutes);
     }
 
     public boolean validateOtp(String email, String otp) {

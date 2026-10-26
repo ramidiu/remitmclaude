@@ -40,6 +40,19 @@ export class KycGuard implements CanActivate {
     }
 
     if (profile) {
+      // ADDRESS-CHANGE RE-UPLOAD: force the customer to re-upload address + identity documents.
+      // Persisted server-side, so it re-enforces on every login until both are re-submitted.
+      if (profile.kycReuploadRequired === true) {
+        const toast = await this.toastCtrl.create({
+          message: 'You changed your address. Please re-upload your proof of address and identity documents to continue.',
+          duration: 6000, position: 'top', color: 'warning',
+          cssClass: 'fb-toast fb-toast-warning',
+          buttons: [{ icon: 'close-outline', role: 'cancel' }]
+        });
+        await toast.present();
+        this.router.navigate(['/home/kyc'], { queryParams: { reupload: 'true' } });
+        return false;
+      }
       // Explicit PENDING_VERIFICATION signal — admin is re-verifying the user.
       if (profile.status === 'PENDING_VERIFICATION') {
         const toast = await this.toastCtrl.create({

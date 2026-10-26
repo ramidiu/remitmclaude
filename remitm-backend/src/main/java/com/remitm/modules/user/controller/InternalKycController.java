@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -25,6 +26,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 @Hidden
+@PreAuthorize("hasAuthority('config:manage_system')")
 public class InternalKycController {
 
     private final KycService kycService;

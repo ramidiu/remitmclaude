@@ -176,7 +176,8 @@ export class AdminSupportPage implements OnInit {
     if (!att?.url) return '';
     if (att.url.startsWith('http')) return att.url;
     const base = environment.apiUrl.replace(/\/api$/, '');
-    return base + att.url;
+    const token = localStorage.getItem('fb_access_token');
+    return base + att.url + (token ? `?token=${encodeURIComponent(token)}` : '');
   }
 
   isImage(att: any): boolean {

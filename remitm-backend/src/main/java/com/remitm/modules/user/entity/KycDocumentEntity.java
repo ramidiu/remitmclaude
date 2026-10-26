@@ -28,6 +28,10 @@ public class KycDocumentEntity {
     @Column(name = "document_type", nullable = false)
     private KycDocumentType documentType;
 
+    /** For two-sided documents: "FRONT" or "BACK". NULL for single-file documents. */
+    @Column(name = "document_side", length = 10)
+    private String documentSide;
+
     @Column(name = "document_number", length = 100)
     private String documentNumber;
 

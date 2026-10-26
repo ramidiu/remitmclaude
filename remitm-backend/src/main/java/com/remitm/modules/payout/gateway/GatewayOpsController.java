@@ -2,8 +2,10 @@ package com.remitm.modules.payout.gateway;
 
 import com.remitm.common.enums.ActorType;
 import com.remitm.common.enums.TransactionStatus;
+import com.remitm.modules.payout.nsano.dto.NsanoApiResponse;
 import com.remitm.modules.payout.nsano.repository.NsanoRepository;
 import com.remitm.modules.payout.nsano.service.NsanoService;
+import com.remitm.modules.payout.zeepay.dto.ZeepayInitiateResponse;
 import com.remitm.modules.payout.zeepay.repository.ZeePayRepository;
 import com.remitm.modules.payout.zeepay.service.ZeepayService;
 import com.remitm.modules.transaction.entity.TransactionEntity;
@@ -17,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -34,6 +37,7 @@ import java.util.*;
 @RequestMapping("/api/payout/gateway")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasPermission(null, 'payout:dispatch')")
 public class GatewayOpsController {
 
     // Pending = anything still in flight (not yet paid/cancelled). Includes CREATED and PENDING —
@@ -47,6 +51,10 @@ public class GatewayOpsController {
     // Cancelled/Failed view — terminal, non-actionable; shown read-only for visibility.
     private static final List<TransactionStatus> CANCELLED = List.of(
             TransactionStatus.CANCELLED, TransactionStatus.FAILED, TransactionStatus.REFUNDED);
+    // "To dispatch" view — ONLY funds-received payouts awaiting a manual Dispatch click.
+    private static final List<TransactionStatus> TO_DISPATCH = List.of(TransactionStatus.FUNDS_RECEIVED);
+    private static final String NSANO_SUCCESS_CODE = "00";
+    private static final String ZEEPAY_SUCCESS_CODE = "411";
 
     private final TransactionRepository transactionRepository;
     private final BeneficiaryRepository beneficiaryRepository;
@@ -79,6 +87,7 @@ public class GatewayOpsController {
         } else {
             List<TransactionStatus> wanted = "done".equalsIgnoreCase(scope) ? DONE
                     : "cancelled".equalsIgnoreCase(scope) ? CANCELLED
+                    : "fundsreceived".equalsIgnoreCase(scope) ? TO_DISPATCH
                     : PENDING;
             pageData = transactionRepository.pageGatewayScoped(gw, wanted, q, fromDt, toDt, pageable);
         }
@@ -86,6 +95,7 @@ public class GatewayOpsController {
         // Summary from COUNT/SUM queries (cheap, accurate, independent of pagination).
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("pending", transactionRepository.countByPayoutGatewayAndStatusIn(gw, PENDING));
+        summary.put("toDispatch", transactionRepository.countByPayoutGatewayAndStatusIn(gw, TO_DISPATCH));
         summary.put("paid", transactionRepository.countByPayoutGatewayAndStatusIn(gw, DONE));
         summary.put("cancelled", transactionRepository.countByPayoutGatewayAndStatusIn(gw, CANCELLED));
         summary.put("paidTotalAmount", transactionRepository.sumReceiveAmountByGatewayAndStatusIn(gw, DONE));
@@ -120,7 +130,8 @@ public class GatewayOpsController {
             data = transactionRepository.pageGatewayAll(gw, q, fromDt, toDt, big);
         } else {
             List<TransactionStatus> wanted = "done".equalsIgnoreCase(scope) ? DONE
-                    : "cancelled".equalsIgnoreCase(scope) ? CANCELLED : PENDING;
+                    : "cancelled".equalsIgnoreCase(scope) ? CANCELLED
+                    : "fundsreceived".equalsIgnoreCase(scope) ? TO_DISPATCH : PENDING;
             data = transactionRepository.pageGatewayScoped(gw, wanted, q, fromDt, toDt, big);
         }
 
@@ -170,6 +181,64 @@ public class GatewayOpsController {
                     "status", fresh.getStatus() != null ? fresh.getStatus().name() : null));
         } catch (Exception ex) {
             log.error("Gateway status-check failed for {} ({}): {}", referenceNumber, gw, ex.getMessage(), ex);
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", ex.getMessage()));
+        }
+    }
+
+    /**
+     * MANUALLY dispatch a funds-received payout via its provider (admin clicks "Dispatch"). Only a
+     * transaction sitting at FUNDS_RECEIVED can be dispatched — the amount is sent exactly once, when
+     * the admin clicks. Flow: FUNDS_RECEIVED → SENT_TO_PAYOUT → provider disburse. We do NOT mark PAID
+     * here: the transaction is left in-flight and the status scheduler / callback confirms the exact
+     * SUCCESS→PAID (or a rejected code marks it FAILED so it doesn't stick).
+     */
+    @PostMapping("/dispatch/{referenceNumber}")
+    public ResponseEntity<Map<String, Object>> dispatch(@PathVariable String referenceNumber) {
+        TransactionEntity tx = transactionRepository.findByReferenceNumber(referenceNumber).orElse(null);
+        if (tx == null) {
+            return ResponseEntity.status(404).body(Map.of("success", false, "message", "Transaction not found"));
+        }
+        if (tx.getStatus() != TransactionStatus.FUNDS_RECEIVED) {
+            return ResponseEntity.ok(Map.of("success", false,
+                    "message", "Only funds-received transactions can be dispatched (current: " + tx.getStatus() + ")"));
+        }
+        String gw = tx.getPayoutGateway() != null ? tx.getPayoutGateway().toUpperCase() : "";
+        try {
+            // Stamp the payout step (state machine) before the provider call.
+            stateMachine.transition(tx, TransactionStatus.SENT_TO_PAYOUT, 0L, ActorType.ADMIN,
+                    "Manually dispatched via " + gw + " from operations page");
+
+            String code = null, message = null, successCode;
+            if ("NSANO".equals(gw)) {
+                NsanoApiResponse r = nsanoService.disburse(referenceNumber);
+                code = r != null ? r.getCode() : null;
+                message = r != null ? r.getMsg() : null;
+                successCode = NSANO_SUCCESS_CODE;      // "00"
+            } else if ("ZEEPAY".equals(gw)) {
+                ZeepayInitiateResponse r = zeepayService.disburse(referenceNumber);
+                code = r != null ? r.getCode() : null;
+                message = r != null ? r.getMessage() : null;
+                successCode = ZEEPAY_SUCCESS_CODE;     // "411"
+            } else {
+                return ResponseEntity.ok(Map.of("success", false, "message", "No dispatch for gateway " + gw));
+            }
+
+            TransactionEntity fresh = transactionRepository.findByReferenceNumber(referenceNumber).orElse(tx);
+            // A non-success code means the provider REJECTED the request — mark FAILED so it isn't stuck
+            // at SENT_TO_PAYOUT. On the success code leave it in-flight for the status scheduler to confirm.
+            if (!successCode.equals(code) && fresh.getStatus() == TransactionStatus.SENT_TO_PAYOUT) {
+                fresh = stateMachine.transition(fresh, TransactionStatus.FAILED, 0L, ActorType.ADMIN,
+                        gw + " rejected dispatch (code " + code + (message != null ? ": " + message : "") + ")");
+            }
+            boolean accepted = successCode.equals(code);
+            return ResponseEntity.ok(Map.of(
+                    "success", accepted,
+                    "status", fresh.getStatus() != null ? fresh.getStatus().name() : "",
+                    "code", code != null ? code : "",
+                    "message", message != null ? message
+                            : (accepted ? "Dispatched — awaiting provider confirmation" : "Dispatch failed")));
+        } catch (Exception ex) {
+            log.error("Gateway dispatch failed for {} ({}): {}", referenceNumber, gw, ex.getMessage(), ex);
             return ResponseEntity.status(500).body(Map.of("success", false, "message", ex.getMessage()));
         }
     }

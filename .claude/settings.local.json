@@ -63,7 +63,14 @@
       "Bash(git push *)",
       "Bash(timeout 60 ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 ' *)",
       "Bash(ssh -o ConnectTimeout=15 -o BatchMode=yes root@77.68.125.96 'bash -s')",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=6 root@77.68.125.96 'echo OK')",
+      "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'Admin@12345', bcrypt.gensalt\\(10, prefix=b'2b'\\)\\).decode\\(\\)\\)\")",
+      "Bash(python3 *)",
+      "Read(//home/umesh/.ssh/**)",
+      "Bash(timeout 30 ssh *)",
+      "Bash(timeout 40 ssh -i ~/.ssh/id_ed25519_remitz -o BatchMode=yes root@77.68.125.96 'docker exec -i remitm-live-mysql mysql -uroot -p'\\\\''5f5fc4ad6591d5b65ad558639291de9f'\\\\'' -D remitm 2>&1')",
+      "Bash(docker volume *)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, SecurityContext } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { AlertController } from '@ionic/angular';
+import { AlertController, ToastController } from '@ionic/angular';
 import { UserService, RiskScoreResponse } from '../../core/services/user.service';
 import { KycService } from '../../core/services/kyc.service';
 import { ComplianceService } from '../../core/services/compliance.service';
@@ -61,8 +61,136 @@ export class SAKycReviewPage implements OnInit, OnDestroy {
     private partnerService: PartnerService,
     private alertCtrl: AlertController,
     private router: Router,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private toastCtrl: ToastController
   ) {}
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Focused document review (ForexBridge-style): tabs for the docs that EXIST
+  // (no empty Selfie tab) + inline viewer (zoom/rotate/fullscreen) + details
+  // panel + Approve/Reject. Loads ONLY the selected doc via its signed/direct
+  // /file URL (no blob, no eager loading).
+  // ─────────────────────────────────────────────────────────────────────────
+  reviewEntry: KycUserEntry | null = null;
+  reviewDocs: any[] = [];
+  activeReviewDoc: any = null;
+  reviewLoadingDocs = false;
+  zoom = 1;
+  rotation = 0;
+
+  openReview(entry: KycUserEntry): void {
+    this.reviewEntry = entry;
+    this.reviewDocs = [];
+    this.activeReviewDoc = null;
+    this.reviewLoadingDocs = true;
+    this.zoom = 1; this.rotation = 0;
+    this.kycService.getDocuments(entry.user.uuid).subscribe({
+      next: (docs) => {
+        const real = (docs || []).filter((d: any) => {
+          const p = (d.filePath || '').toLowerCase();
+          return d.realUpload !== false && !p.includes('no_image');
+        });
+        // Only the documents that were actually uploaded — latest of each type+side, so a
+        // two-sided document's FRONT and BACK are BOTH shown as separate tabs.
+        const byType = new Map<string, any>();
+        for (const d of real) {
+          const t = String(d.documentType) + '|' + (d.documentSide || '');
+          const cur = byType.get(t);
+          const dt = new Date(d.createdAt || d.uploadedAt || 0).getTime();
+          if (!cur || d.latest || dt > new Date(cur.createdAt || cur.uploadedAt || 0).getTime()) byType.set(t, d);
+        }
+        this.reviewDocs = Array.from(byType.values());
+        this.tagReviewDocVersions(this.reviewDocs);
+        this.reviewLoadingDocs = false;
+        if (this.reviewDocs.length) this.selectReviewDoc(this.reviewDocs[0]);
+      },
+      error: () => { this.reviewLoadingDocs = false; }
+    });
+  }
+
+  /**
+   * Tag viewer docs LATEST / PREVIOUS per type: within a type the newest upload (front+back
+   * grouped by a 2-minute window) is LATEST and older copies are PREVIOUS. Only tags types that
+   * have more than one document, so a lone document shows no version tag.
+   */
+  private tagReviewDocVersions(docs: any[]): void {
+    const t = (d: any) => new Date(d.createdAt || d.uploadedAt || 0).getTime();
+    const byType: { [k: string]: any[] } = {};
+    for (const d of docs) (byType[d.documentType] = byType[d.documentType] || []).push(d);
+    for (const type of Object.keys(byType)) {
+      const list = byType[type];
+      if (list.length <= 1) { list.forEach(d => (d as any)._versionTag = ''); continue; }
+      const max = Math.max(...list.map(t));
+      for (const d of list) (d as any)._versionTag = (max - t(d) <= 120000) ? 'LATEST' : 'PREVIOUS';
+    }
+  }
+
+  selectReviewDoc(doc: any): void {
+    this.activeReviewDoc = doc;
+    this.zoom = 1; this.rotation = 0;
+    if (!doc.viewUrl && this.reviewEntry) {
+      const url = this.kycService.getDocumentFileUrl(this.reviewEntry.user.uuid, doc.id);
+      const ext = (doc.filePath || doc.fileUrl || '').toLowerCase();
+      doc.isPdf = ext.endsWith('.pdf');
+      doc.isImage = !doc.isPdf;
+      doc.viewUrl = url;
+      doc.safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url + '#toolbar=1');
+    }
+  }
+
+  closeReview(): void { this.reviewEntry = null; this.activeReviewDoc = null; this.reviewDocs = []; }
+  zoomIn(): void { this.zoom = Math.min(this.zoom + 0.25, 4); }
+  zoomOut(): void { this.zoom = Math.max(this.zoom - 0.25, 0.25); }
+  zoomReset(): void { this.zoom = 1; this.rotation = 0; }
+  rotateDoc(): void { this.rotation = (this.rotation + 90) % 360; }
+  openInNewTab(): void { if (this.activeReviewDoc?.viewUrl) window.open(this.activeReviewDoc.viewUrl, '_blank'); }
+  downloadDoc(): void {
+    const doc = this.activeReviewDoc;
+    if (!doc?.viewUrl) return;
+    const a = document.createElement('a');
+    a.href = doc.viewUrl;
+    a.download = this.formatDocType(doc.documentType).replace(/\s+/g, '_') + (doc.isPdf ? '.pdf' : '');
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  approveReviewDoc(): void {
+    const entry = this.reviewEntry, doc = this.activeReviewDoc;
+    if (!entry || !doc) return;
+    if ((entry.openComplianceAlerts || 0) > 0) { this.showComplianceBlockDialog(entry); return; }
+    doc._busy = true;
+    this.kycService.reviewDocument(entry.user.uuid, doc.id, { status: KycDocumentStatus.APPROVED }).subscribe({
+      next: () => { doc.status = 'APPROVED'; doc._busy = false; this.refreshEntryStatus(entry); this.reviewToast('Document approved', 'success'); },
+      error: () => { doc._busy = false; this.reviewToast('Approve failed', 'danger'); }
+    });
+  }
+
+  async rejectReviewDoc(): Promise<void> {
+    const entry = this.reviewEntry, doc = this.activeReviewDoc;
+    if (!entry || !doc) return;
+    const alert = await this.alertCtrl.create({
+      header: 'Reject Document',
+      message: 'Please provide a reason for rejection:',
+      inputs: [{ name: 'reason', type: 'textarea', placeholder: 'Enter rejection reason...' }],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Reject', cssClass: 'alert-button-danger', handler: (data) => {
+          if (!data.reason || !data.reason.trim()) return false;
+          doc._busy = true;
+          this.kycService.reviewDocument(entry.user.uuid, doc.id, { status: KycDocumentStatus.REJECTED, rejectionReason: data.reason.trim() }).subscribe({
+            next: () => { doc.status = 'REJECTED'; doc.rejectionReason = data.reason.trim(); doc._busy = false; this.refreshEntryStatus(entry); this.reviewToast('Document rejected', 'warning'); },
+            error: () => { doc._busy = false; this.reviewToast('Reject failed', 'danger'); }
+          });
+          return true;
+        } }
+      ]
+    });
+    await alert.present();
+  }
+
+  private async reviewToast(message: string, color: string): Promise<void> {
+    const t = await this.toastCtrl.create({ message, duration: 2500, position: 'top', color });
+    await t.present();
+  }
 
   ngOnInit(): void {
     this.loadStats();
@@ -145,7 +273,9 @@ export class SAKycReviewPage implements OnInit, OnDestroy {
   }
 
   getPayinDocUrl(docId: number): string {
-    return `${environment.apiUrl}/payin/customer/document/${docId}/file`;
+    const url = `${environment.apiUrl}/payin/customer/document/${docId}/file`;
+    const token = localStorage.getItem('fb_access_token');
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
   }
 
   loadUsers(): void {
@@ -361,6 +491,7 @@ export class SAKycReviewPage implements OnInit, OnDestroy {
           const p = (d.filePath || '').toLowerCase();
           return (d as any).realUpload !== false && !p.includes('no_image');
         });
+        this.tagDocVersions(entry.documents);
         entry.loadingDocs = false;
         // Documents open in a NEW TAB on demand (openDocument) — no eager blob-loading and no
         // inline rendering, which used to freeze the page when a user had several large files.
@@ -370,6 +501,24 @@ export class SAKycReviewPage implements OnInit, OnDestroy {
         entry.loadingDocs = false;
       }
     });
+  }
+
+  /**
+   * Tag each document as LATEST / PREVIOUS for its type — but ONLY when more than one
+   * document of that type exists (a verified copy superseded by a re-upload). A lone
+   * document of a type gets no tag.
+   */
+  private tagDocVersions(docs: any[]): void {
+    const key = (d: any) => d.documentType + '|' + (d.documentSide || '');
+    const countByType: { [k: string]: number } = {};
+    for (const d of docs || []) {
+      countByType[key(d)] = (countByType[key(d)] || 0) + 1;
+    }
+    for (const d of docs || []) {
+      (d as any)._versionTag = (countByType[key(d)] > 1)
+        ? (d.latest === true ? 'LATEST' : 'PREVIOUS')
+        : '';
+    }
   }
 
   isPendingVerification(entry: KycUserEntry): boolean {

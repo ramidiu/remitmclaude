@@ -8,6 +8,7 @@ import com.remitm.modules.transaction.repository.PayoutTypeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -24,6 +25,7 @@ import java.util.*;
 @RequestMapping("/api/transactions/payout-routing")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasPermission(null, 'config:manage_corridors')")
 public class PayoutRoutingAdminController {
 
     private final CorridorDeliveryMethodRepository deliveryMethodRepository;

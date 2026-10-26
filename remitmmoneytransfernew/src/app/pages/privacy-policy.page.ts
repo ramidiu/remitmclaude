@@ -66,7 +66,7 @@ import { Component } from '@angular/core';
       <p>You can request deletion of your account at any time, either from within the mobile app under <strong>Settings &rarr; Delete Account</strong>, via our <a href="/account-deletion">Account Deletion</a> page, or by contacting support.</p>
       <p><strong>What is deleted:</strong> once your request is verified, your account access is removed and your profile information, saved recipients, and marketing preferences are deleted.</p>
       <p><strong>What is retained:</strong> certain transaction history and identity verification (KYC) records may be retained for the legally required retention period under Anti-Money Laundering (AML), KYC, fraud-prevention, tax, and financial regulations before being permanently deleted. This retention is a legal obligation and applies even after you request deletion.</p>
-      <p><strong>Processing time:</strong> deletion requests are normally processed within 30 days. For assistance, contact <a href="mailto:support@remitm.com">support@remitm.com</a>.</p>
+      <p><strong>Processing time:</strong> deletion requests are normally processed within 30 days. For assistance, contact <a href="mailto:info@remitm.com">info@remitm.com</a>.</p>
 
       <h2>Children's Privacy</h2>
       <p>Our services are not intended for children under the age of 13, and we do not knowingly collect data from them. If we learn that we have collected personal data from a child, we will delete it immediately.</p>

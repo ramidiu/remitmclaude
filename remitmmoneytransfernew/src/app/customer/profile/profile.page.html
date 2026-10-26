@@ -233,18 +233,48 @@
 
         <div class="edit-form-row">
           <div class="fb-field">
-            <label class="fb-field__label">{{ 'PROFILE.FIRST_NAME' | translate }} *</label>
-            <input type="text" appLatinName class="fb-input" formControlName="firstName" />
+            <label class="fb-field__label">
+              {{ 'PROFILE.FIRST_NAME' | translate }}
+              <ion-icon name="lock-closed" class="fb-field__lock"></ion-icon>
+            </label>
+            <input type="text" class="fb-input fb-input--locked" formControlName="firstName" readonly />
           </div>
           <div class="fb-field">
-            <label class="fb-field__label">{{ 'PROFILE.LAST_NAME' | translate }} *</label>
-            <input type="text" appLatinName class="fb-input" formControlName="lastName" />
+            <label class="fb-field__label">
+              {{ 'PROFILE.LAST_NAME' | translate }}
+              <ion-icon name="lock-closed" class="fb-field__lock"></ion-icon>
+            </label>
+            <input type="text" class="fb-input fb-input--locked" formControlName="lastName" readonly />
           </div>
         </div>
 
         <div class="fb-field">
+          <label class="fb-field__label">
+            {{ 'PROFILE.DATE_OF_BIRTH' | translate }}
+            <ion-icon name="lock-closed" class="fb-field__lock"></ion-icon>
+          </label>
+          <input type="text" class="fb-input fb-input--locked"
+            [value]="(user?.dateOfBirth | date:'longDate') || '—'" readonly />
+        </div>
+
+        <p class="edit-locked-note">
+          <ion-icon name="information-circle-outline"></ion-icon>
+          {{ 'PROFILE.LOCKED_FIELDS_NOTE' | translate }}
+        </p>
+
+        <div class="fb-field">
           <label class="fb-field__label">{{ 'PROFILE.PHONE_NUMBER' | translate }} *</label>
           <input type="tel" class="fb-input" formControlName="phone" />
+        </div>
+
+        <div class="email-row">
+          <div class="fb-field">
+            <label class="fb-field__label">{{ 'PROFILE.EMAIL_ADDRESS' | translate }}</label>
+            <input type="email" class="fb-input fb-input--locked" [value]="user?.email || ''" readonly />
+          </div>
+          <button type="button" class="email-change-btn" (click)="openEmailChange()">
+            {{ 'PROFILE.CHANGE_EMAIL' | translate }}
+          </button>
         </div>
 
         <h4 class="edit-section-title">{{ 'PROFILE.ADDRESS_SECTION' | translate }}</h4>
@@ -278,6 +308,54 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Change Email Modal (OTP verification to the NEW email) -->
+<div class="edit-overlay" [class.edit-overlay--open]="showEmailModal" (click)="closeEmailChange()">
+  <div class="edit-modal" [class.edit-modal--open]="showEmailModal" (click)="$event.stopPropagation()">
+    <div class="edit-modal__header">
+      <h3>{{ 'PROFILE.CHANGE_EMAIL_TITLE' | translate }}</h3>
+      <button class="edit-modal__close" (click)="closeEmailChange()">
+        <ion-icon name="close-outline"></ion-icon>
+      </button>
+    </div>
+
+    <div class="edit-modal__body">
+      <!-- Step 1: enter the new email -->
+      <ng-container *ngIf="emailStep === 'enter'">
+        <div class="fb-field">
+          <label class="fb-field__label">{{ 'PROFILE.NEW_EMAIL' | translate }}</label>
+          <input type="email" class="fb-input" [(ngModel)]="newEmail" [ngModelOptions]="{ standalone: true }"
+            [placeholder]="'PROFILE.NEW_EMAIL_PLACEHOLDER' | translate" autocomplete="off" />
+        </div>
+        <div class="edit-modal__actions">
+          <button type="button" class="fb-btn fb-btn--secondary" (click)="closeEmailChange()">{{ 'PROFILE.CANCEL' | translate }}</button>
+          <button type="button" class="fb-btn fb-btn--primary" [disabled]="emailChanging || !newEmail" (click)="sendEmailOtp()">
+            {{ emailChanging ? ('PROFILE.SAVING' | translate) : ('PROFILE.SEND_OTP' | translate) }}
+          </button>
+        </div>
+      </ng-container>
+
+      <!-- Step 2: verify the OTP sent to the new email -->
+      <ng-container *ngIf="emailStep === 'otp'">
+        <div class="edit-modal__warning">
+          <ion-icon name="mail-outline"></ion-icon>
+          <span>{{ 'PROFILE.EMAIL_OTP_SENT' | translate }}</span>
+        </div>
+        <div class="fb-field">
+          <label class="fb-field__label">{{ 'PROFILE.ENTER_OTP' | translate }}</label>
+          <input type="text" inputmode="numeric" maxlength="6" class="fb-input" [(ngModel)]="emailOtp"
+            [ngModelOptions]="{ standalone: true }" [placeholder]="'PROFILE.OTP_PLACEHOLDER' | translate" autocomplete="one-time-code" />
+        </div>
+        <div class="edit-modal__actions">
+          <button type="button" class="fb-btn fb-btn--secondary" [disabled]="emailChanging" (click)="sendEmailOtp()">{{ 'PROFILE.RESEND_OTP' | translate }}</button>
+          <button type="button" class="fb-btn fb-btn--primary" [disabled]="emailChanging || !emailOtp" (click)="verifyEmailOtp()">
+            {{ emailChanging ? ('PROFILE.SAVING' | translate) : ('PROFILE.VERIFY_EMAIL' | translate) }}
+          </button>
+        </div>
+      </ng-container>
     </div>
   </div>
 </div>

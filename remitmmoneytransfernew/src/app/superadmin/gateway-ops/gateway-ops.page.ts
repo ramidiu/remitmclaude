@@ -17,14 +17,17 @@ import { PartnerService } from '../../core/services/partner.service';
 })
 export class GatewayOpsPage implements OnInit, OnDestroy {
   gateway = '';                 // NSANO | ZEEPAY
-  scope: 'all' | 'pending' | 'done' | 'cancelled' = 'all';
+  scope: 'all' | 'pending' | 'fundsreceived' | 'done' | 'cancelled' = 'all';
   rows: any[] = [];
-  summary: any = { pending: 0, paid: 0, paidTotalAmount: 0, cancelled: 0 };
+  summary: any = { pending: 0, toDispatch: 0, paid: 0, paidTotalAmount: 0, cancelled: 0 };
   loading = true;
   search = '';                  // server-side search (reference / sender)
   fromDate = '';                // date range filter (yyyy-MM-dd)
   toDate = '';
   exporting = false;
+
+  // Row clicked → details drawer (null = closed)
+  selectedRow: any = null;
 
   // Server-side pagination
   page = 0;
@@ -73,7 +76,7 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
     return this.gateway === 'NSANO' ? 'Nsano' : this.gateway === 'ZEEPAY' ? 'Zeepay' : this.gateway;
   }
 
-  setScope(scope: 'all' | 'pending' | 'done' | 'cancelled'): void {
+  setScope(scope: 'all' | 'pending' | 'fundsreceived' | 'done' | 'cancelled'): void {
     if (this.scope === scope) return;
     this.scope = scope;
     this.page = 0;
@@ -132,17 +135,55 @@ export class GatewayOpsPage implements OnInit, OnDestroy {
     return this.ACTIONABLE.includes((status || '').toUpperCase());
   }
 
+  /** Open the details drawer for a clicked row. */
+  openDetails(row: any): void { this.selectedRow = row; }
+  closeDetails(): void { this.selectedRow = null; }
+
   checkStatus(row: any): void {
     row._busy = true;
     this.partnerService.gatewayCheckStatus(row.referenceNumber).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
         row._busy = false;
         const st = res?.status;
+        if (st) row.status = st;   // reflect the fresh status in the row + open drawer immediately
         this.showToast(res?.success ? `${this.title} status: ${st}` : (res?.message || 'Status check unavailable'),
           res?.success ? (st === 'PAID' ? 'success' : 'primary') : 'warning');
         this.load();
       },
       error: () => { row._busy = false; this.showToast('Status check failed', 'danger'); }
+    });
+  }
+
+  /** Only a funds-received payout can be dispatched (the amount is sent when the admin clicks). */
+  isDispatchable(status: string): boolean {
+    return (status || '').toUpperCase() === 'FUNDS_RECEIVED';
+  }
+
+  /** Admin clicks "Dispatch" → send this one payout now. Confirm first (real money leaves). */
+  async dispatch(row: any): Promise<void> {
+    const confirm = await this.toastCtrl.create({
+      message: `Dispatch ${row.receiveAmount} ${row.receiveCurrency} to ${row.beneficiaryName || row.referenceNumber}?`,
+      position: 'top', color: 'warning', cssClass: 'fb-toast fb-toast-warning',
+      buttons: [
+        { text: 'Dispatch', handler: () => this.doDispatch(row) },
+        { text: 'Cancel', role: 'cancel' }
+      ]
+    });
+    await confirm.present();
+  }
+
+  private doDispatch(row: any): void {
+    row._busy = true;
+    this.partnerService.gatewayDispatch(row.referenceNumber).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        row._busy = false;
+        if (res?.status) row.status = res.status;   // reflect in row + open drawer
+        this.showToast(
+          res?.success ? `Payment sent — ${res?.status || 'awaiting confirmation'}` : (res?.message || 'Payment failed'),
+          res?.success ? 'success' : 'danger');
+        this.load();
+      },
+      error: (err) => { row._busy = false; this.showToast(err?.error?.message || 'Payment failed', 'danger'); }
     });
   }
 

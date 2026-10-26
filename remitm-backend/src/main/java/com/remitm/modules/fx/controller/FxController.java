@@ -115,6 +115,7 @@ public class FxController {
     }
 
     @GetMapping("/margins")
+    @PreAuthorize("hasPermission(null, 'fx:set_margins')")
     @Operation(summary = "List all margin configurations", description = "Returns all FX margin configurations")
     public ResponseEntity<ApiResponse<List<MarginConfigResponse>>> listMargins() {
         List<MarginConfigResponse> margins = fxMarginService.listMargins();

@@ -15,6 +15,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -99,6 +100,7 @@ public class SupportTicketController {
     // ==================== Admin Endpoints ====================
 
     @GetMapping("/admin/tickets")
+    @PreAuthorize("hasPermission(null, 'support:manage')")
     @Operation(summary = "Get all tickets (admin)", description = "Admin: list all support tickets with optional filters")
     public ResponseEntity<ApiResponse<List<TicketResponse>>> getAllTickets(
             @RequestParam(required = false) String status,
@@ -112,6 +114,7 @@ public class SupportTicketController {
     }
 
     @GetMapping("/admin/tickets/{ticketId}")
+    @PreAuthorize("hasPermission(null, 'support:manage')")
     @Operation(summary = "Get ticket detail (admin)", description = "Admin: view any support ticket with all messages")
     public ResponseEntity<ApiResponse<TicketResponse>> getTicketDetailAdmin(@PathVariable Long ticketId) {
         TicketResponse response = supportTicketService.getTicketDetailAdmin(ticketId);
@@ -122,6 +125,7 @@ public class SupportTicketController {
     }
 
     @PostMapping("/admin/tickets/{ticketId}/reply")
+    @PreAuthorize("hasPermission(null, 'support:manage')")
     @Operation(summary = "Admin reply to ticket", description = "Admin: reply to a support ticket as an agent")
     public ResponseEntity<ApiResponse<TicketMessageResponse>> adminReplyToTicket(
             HttpServletRequest request,
@@ -145,6 +149,7 @@ public class SupportTicketController {
     }
 
     @PutMapping("/admin/tickets/{ticketId}/status")
+    @PreAuthorize("hasPermission(null, 'support:manage')")
     @Operation(summary = "Update ticket status (admin)", description = "Admin: update ticket status and assignment")
     public ResponseEntity<ApiResponse<TicketResponse>> updateTicketStatus(
             @PathVariable Long ticketId,
@@ -164,6 +169,7 @@ public class SupportTicketController {
     @Operation(summary = "Get attachment file", description = "Download a support ticket attachment")
     public ResponseEntity<Resource> getAttachmentFile(@PathVariable Long attachmentId) {
         SupportTicketAttachmentEntity attachment = supportTicketService.getAttachment(attachmentId);
+        assertCanAccessAttachment(attachment);
         File file = new File(attachment.getFilePath());
 
         if (!file.exists()) {
@@ -179,6 +185,25 @@ public class SupportTicketController {
     }
 
     // ==================== Helper ====================
+
+    /**
+     * Ownership guard: allow the ticket owner (JWT subject == ticket.userId) OR a staff member
+     * holding {@code support:manage}. Prevents enumeration/download of other users' attachments (IDOR).
+     */
+    private void assertCanAccessAttachment(SupportTicketAttachmentEntity attachment) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "support:manage".equals(a.getAuthority()))) {
+            return; // staff override
+        }
+        String callerUuid = auth != null ? auth.getName() : null;
+        String ownerUuid = attachment.getTicket() != null ? attachment.getTicket().getUserId() : null;
+        if (callerUuid == null || ownerUuid == null || !callerUuid.equals(ownerUuid)) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "Access denied", org.springframework.http.HttpStatus.FORBIDDEN);
+        }
+    }
 
     private String extractUserUuid(HttpServletRequest request) {
         String userUuid = request.getHeader("X-User-UUID");

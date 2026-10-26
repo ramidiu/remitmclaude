@@ -23,7 +23,8 @@ Environment=JWT_SECRET=REPLACE_WITH_GENERATED_SECRET
 Environment=KYC_UPLOAD_DIR=/var/www/remitm/data/kyc-uploads
 
 Environment=BRAND_NAME=Remitm Money Transfer
-Environment=BRAND_SUPPORT_EMAIL=support@remitm.com
+Environment=BRAND_SUPPORT_EMAIL=info@remitm.com
+Environment=BRAND_ADDRESS=20 Kirkdale Road, London, E11 1HP, United Kingdom
 Environment=FRONTEND_URL=http://test.remitm.com
 
 Environment=BREVO_API_KEY=CHANGE_ME_BREVO_KEY

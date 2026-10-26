@@ -103,6 +103,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
+        // Fallback: accept the token as a "token" query parameter. Used ONLY by file/preview GETs
+        // that are loaded through an <img>/<iframe> src — browsers do not attach the Authorization
+        // header to those, so an access-controlled file endpoint would otherwise be unreachable.
+        String paramToken = request.getParameter("token");
+        if (StringUtils.hasText(paramToken)) {
+            return paramToken;
+        }
         return null;
     }
 

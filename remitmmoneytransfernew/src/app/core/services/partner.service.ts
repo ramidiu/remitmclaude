@@ -14,7 +14,7 @@ export class PartnerService {
   getPayinCreationFlags(): Observable<any> { return this.http.get(`${environment.apiUrl}/payin/creation-flags`); }
 
   // Gateway operations (admin per-rail pages: Nsano / Zeepay). Each page = one gateway only.
-  getGatewayTransactions(gateway: string, scope: 'all' | 'pending' | 'done' | 'cancelled' = 'all',
+  getGatewayTransactions(gateway: string, scope: 'all' | 'pending' | 'fundsreceived' | 'done' | 'cancelled' = 'all',
                          page = 0, size = 25, search = '', from = '', to = ''): Observable<any> {
     let params = new HttpParams().set('scope', scope).set('page', page).set('size', size);
     if (search && search.trim()) params = params.set('search', search.trim());
@@ -35,6 +35,10 @@ export class PartnerService {
   }
   gatewayCheckStatus(referenceNumber: string): Observable<any> {
     return this.http.post(`${environment.apiUrl}/payout/gateway/check-status/${referenceNumber}`, {});
+  }
+  /** Manually dispatch a funds-received payout (admin clicks Dispatch → provider disburse). */
+  gatewayDispatch(referenceNumber: string): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/payout/gateway/dispatch/${referenceNumber}`, {});
   }
 
   // Payout Routing — assign corridor_delivery_methods → payout partner (drives the gateway).

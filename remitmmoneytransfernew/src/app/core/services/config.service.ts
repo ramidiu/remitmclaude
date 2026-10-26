@@ -26,6 +26,9 @@ export class ConfigService {
   getBankNames(country: string): Observable<any> { return this.http.get(`${this.txnUrl}/banks/list/${country}`); }
   /** Banks WITH their identifier/code (e.g. Nsano Ghana: name + bank code) for code-aware lookups. */
   getBanksFull(country: string): Observable<any> { return this.http.get(`${this.txnUrl}/banks/full/${country}`); }
+  /** Zeepay LIVE bank list for a country (ISO-3, e.g. GHA/NGA). Returns {code, banks:[{name,code,...}]}.
+   *  Used for the Ghana/Nigeria bank dropdown — shared by BOTH Zeepay and Nsano payouts. */
+  getZeepayBanks(iso3: string): Observable<any> { return this.http.get(`${environment.apiUrl}/payout/zeepay/banks/${iso3}`); }
   bankLookup(identifier: string, country: string): Observable<any> { return this.http.get(`${this.txnUrl}/banks/lookup`, { params: { identifier, country } }); }
   bankSearchIdentifier(prefix: string, country: string): Observable<any> { return this.http.get(`${this.txnUrl}/banks/search-identifier`, { params: { prefix, country } }); }
   bankSearchName(name: string, country: string): Observable<any> { return this.http.get(`${this.txnUrl}/banks/search`, { params: { name, country } }); }

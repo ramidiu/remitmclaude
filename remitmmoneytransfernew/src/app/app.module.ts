@@ -11,6 +11,7 @@ import { AuthInterceptor } from './core/interceptors/auth.interceptor';
 import { ApiResponseUnwrapInterceptor } from './core/interceptors/api-response-unwrap.interceptor';
 import { ErrorInterceptor } from './core/interceptors/error.interceptor';
 import { LanguageService } from './core/services/language.service';
+import { AppConfigService } from './core/services/app-config.service';
 
 export function createTranslateLoader(http: HttpClient) {
   return new TranslateHttpLoader(http, './assets/i18n/', '.json');
@@ -25,6 +26,10 @@ class GlobalErrorHandler implements ErrorHandler {
 
 export function initLanguage(langService: LanguageService) {
   return () => langService.init();
+}
+
+export function initAppConfig(appConfig: AppConfigService) {
+  return () => appConfig.load();
 }
 
 @NgModule({
@@ -53,6 +58,12 @@ export function initLanguage(langService: LanguageService) {
       provide: APP_INITIALIZER,
       useFactory: initLanguage,
       deps: [LanguageService],
+      multi: true
+    },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initAppConfig,
+      deps: [AppConfigService],
       multi: true
     }
   ],

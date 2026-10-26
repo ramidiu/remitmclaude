@@ -61,7 +61,8 @@ services:
       # publicly reachable host (NOT localhost) or the logo/links break in delivered mail.
       - FRONTEND_URL=${FRONTEND_URL:-https://www.remitm.com}
       - BRAND_NAME=Remitm Money Transfer
-      - BRAND_SUPPORT_EMAIL=support@remitm.com
+      - BRAND_SUPPORT_EMAIL=info@remitm.com
+      - BRAND_ADDRESS=20 Kirkdale Road, London, E11 1HP, United Kingdom
       # Optional override for the email logo; blank = derive from FRONTEND_URL (/assets/images/email-logo.png).
       - BRAND_LOGO_URL=${BRAND_LOGO_URL:-}
       - KUBER_ENABLED=${KUBER_ENABLED:-false}

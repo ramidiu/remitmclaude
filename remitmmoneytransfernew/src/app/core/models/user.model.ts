@@ -21,6 +21,9 @@ export interface UserResponse {
   mfaEnabled: boolean;
   emailVerified: boolean;
   phoneVerified: boolean;
+  // True when an address change forces re-upload of address + identity documents.
+  kycReuploadRequired?: boolean;
+  kycReuploadReason?: string;
   createdAt: string;
   updatedAt: string;
 }

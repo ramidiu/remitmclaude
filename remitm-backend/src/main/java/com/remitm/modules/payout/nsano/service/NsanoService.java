@@ -7,8 +7,10 @@ import com.remitm.modules.payout.nsano.dto.NsanoInitiateRequest;
 import com.remitm.modules.payout.nsano.entity.NsanoEntity;
 import com.remitm.modules.payout.nsano.repository.NsanoRepository;
 import com.remitm.common.enums.DeliveryMethod;
+import com.remitm.modules.transaction.entity.BankDatabase;
 import com.remitm.modules.transaction.entity.BeneficiaryEntity;
 import com.remitm.modules.transaction.entity.TransactionEntity;
+import com.remitm.modules.transaction.repository.BankDatabaseRepository;
 import com.remitm.modules.transaction.repository.BeneficiaryRepository;
 import com.remitm.modules.transaction.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ public class NsanoService {
     private final NsanoRepository nsanoRepository;
     private final TransactionRepository transactionRepository;
     private final BeneficiaryRepository beneficiaryRepository;
+    private final BankDatabaseRepository bankDatabaseRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
     // ------------------------------------------------------------------ headers
@@ -102,7 +105,9 @@ public class NsanoService {
         body.put("amount", tx.getReceiveAmount());
         body.put("exchangeRate", tx.getAppliedRate());
         body.put("narration", request.getNarration());
-        body.put("destinationHouse", request.getDestinationHouse());
+        body.put("destinationHouse", isWallet
+                ? normalizeWalletHouse(request.getDestinationHouse())
+                : request.getDestinationHouse());
         // Old laylaremitm performDeposit set sender == the recipient's account / mobile number.
         body.put("sender", request.getRecipient());
         body.put("recipient", request.getRecipient());
@@ -189,11 +194,11 @@ public class NsanoService {
         DeliveryMethod dm = bene.getDeliveryMethod() != null ? bene.getDeliveryMethod() : tx.getDeliveryMethod();
         if (dm == DeliveryMethod.BANK_DEPOSIT) {
             req.setPaymentType("BANK");
-            req.setDestinationHouse(bene.getSwiftBic());
+            req.setDestinationHouse(resolveBankHouse(bene));
             req.setRecipient(bene.getAccountNumber());
         } else {
             req.setPaymentType("WALLET");
-            req.setDestinationHouse(bene.getMobileProvider());
+            req.setDestinationHouse(normalizeWalletHouse(bene.getMobileProvider()));
             req.setRecipient(bene.getMobileNumber());
         }
         log.info("NSANO disburse: type={} destinationHouse={} recipient={} ref={}",
@@ -201,11 +206,12 @@ public class NsanoService {
 
         NsanoApiResponse resp = initiate(req);
 
-        // Old website: on code "00" the transaction goes straight to Paid.
-        if (resp != null && SUCCESS_CODE.equals(resp.getCode())) {
-            nsanoRepository.findByTransactionId(referenceNumber).ifPresent(this::markPaid);
-        }
-        log.info("========== NSANO disburse (auto) END | ref={} | code={} ==========",
+        // Do NOT mark PAID here. NSANO code "00" only means the request was ACCEPTED ("amount will be
+        // transferred to bank soon") — it is NOT confirmation the money settled. The real, EXACT
+        // status (SUCCESS/FAILED) is resolved by the status scheduler polling /transactions/{nsanoId}
+        // (or the inbound callback), which then marks the transaction PAID. This avoids optimistically
+        // showing PAID at dispatch time before NSANO actually settles.
+        log.info("========== NSANO disburse END | ref={} | code={} (awaiting status confirmation) ==========",
                 referenceNumber, resp != null ? resp.getCode() : "null");
         return resp;
     }
@@ -344,7 +350,9 @@ public class NsanoService {
                           : "/api/v2/remittance/name-check/account");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("accountNumber", accountNumber);
-        body.put("destinationHouse", destinationHouse);
+        // Wallets: NSANO only accepts the bare network token (MTN/VODAFONE/AIRTELTIGO). Our stored
+        // provider is a display name ("MTN Mobile Money", "Vodafone Cash", ...) — normalise it.
+        body.put("destinationHouse", wallet ? normalizeWalletHouse(destinationHouse) : destinationHouse);
         try {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, authHeaders());
             ResponseEntity<NsanoApiResponse> response =
@@ -353,9 +361,50 @@ public class NsanoService {
             if (r != null && SUCCESS_CODE.equals(r.getCode()) && r.getData() != null) {
                 return r.getData().getAccountName();
             }
+            // Non-success: log NSANO's code/msg so we can tell an auth failure (e.g. "05
+            // Unauthorized access") apart from a genuine "account not found".
+            log.warn("NSANO: name-check no result | account={} | code={} | msg={}",
+                    accountNumber,
+                    r != null ? r.getCode() : null,
+                    r != null ? r.getMsg() : null);
         } catch (Exception ex) {
             log.error("NSANO: name-check EXCEPTION | account={}", accountNumber, ex);
         }
         return null;
+    }
+
+    /**
+     * Map a stored/typed mobile-network name to the exact token NSANO accepts.
+     * NSANO only understands {@code MTN}, {@code VODAFONE}, {@code AIRTELTIGO}; our data holds
+     * display names like "MTN Mobile Money", "Vodafone Cash", "AirtelTigo Money". Unknown values
+     * are returned trimmed/upper-cased so a correct token still passes through unchanged.
+     */
+    /**
+     * Resolve the NSANO bank code (destinationHouse) for a bank beneficiary. GH bank recipients are
+     * saved with only a bank name (no SWIFT), so we look up the bank_database identifier the SAME way
+     * the name-check does (bank name → bankIdentifier, e.g. "ZENITH BANK" → "ZNB"). Falls back to the
+     * stored SWIFT/BIC if no match, so nothing regresses for other corridors.
+     */
+    private String resolveBankHouse(BeneficiaryEntity bene) {
+        String bankName = bene.getBankName();
+        if (bankName != null && !bankName.isBlank()) {
+            Optional<BankDatabase> match = bankDatabaseRepository
+                    .findByCountryCodeAndBankNameContainingIgnoreCase(RECIPIENT_COUNTRY, bankName)
+                    .stream().findFirst();
+            if (match.isPresent() && match.get().getBankIdentifier() != null) {
+                return match.get().getBankIdentifier();
+            }
+        }
+        return bene.getSwiftBic();
+    }
+
+    static String normalizeWalletHouse(String house) {
+        if (house == null) return null;
+        String h = house.trim().toUpperCase();
+        if (h.isEmpty()) return h;
+        if (h.contains("MTN")) return "MTN";
+        if (h.contains("VODAFONE") || h.contains("VODA") || h.contains("TELECEL")) return "VODAFONE";
+        if (h.contains("AIRTEL") || h.contains("TIGO")) return "AIRTELTIGO";
+        return h;
     }
 }

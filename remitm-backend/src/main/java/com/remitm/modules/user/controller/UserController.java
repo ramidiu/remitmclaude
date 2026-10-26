@@ -1,6 +1,8 @@
 package com.remitm.modules.user.controller;
 
 import com.remitm.common.dto.ApiResponse;
+import com.remitm.common.dto.EmailChangeRequest;
+import com.remitm.common.dto.EmailChangeVerifyRequest;
 import com.remitm.common.dto.UserResponse;
 import com.remitm.common.dto.UserUpdateRequest;
 import com.remitm.modules.user.service.UserService;
@@ -22,10 +24,35 @@ public class UserController {
 
     private final UserService userService;
 
+    /**
+     * Ownership guard: allow only the account owner (JWT subject == uuid) OR a staff member.
+     * Prevents any authenticated user from reading/editing another user's profile via the {uuid}
+     * path variable (IDOR).
+     *
+     * Staff is detected by an admin/compliance-only authority ({@code user:suspend} or
+     * {@code user:approve_kyc}). NOTE: {@code user:view}/{@code user:edit} are intentionally NOT
+     * used here — the CUSTOMER role holds those for self-service, so using them as the staff marker
+     * would let any customer read every other user's profile.
+     */
+    private void assertSelfOrStaff(String uuid) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getAuthorities().stream().anyMatch(a ->
+                "user:suspend".equals(a.getAuthority()) || "user:approve_kyc".equals(a.getAuthority()))) {
+            return; // staff override (ADMIN / SUPER_ADMIN / COMPLIANCE_OFFICER)
+        }
+        String caller = auth != null ? auth.getName() : null;
+        if (caller == null || !caller.equals(uuid)) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "Access denied", org.springframework.http.HttpStatus.FORBIDDEN);
+        }
+    }
+
     @Operation(summary = "Get user by UUID", description = "Retrieve a user profile by their UUID")
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<UserResponse>> getUser(
             @Parameter(description = "User UUID") @PathVariable String uuid) {
+        assertSelfOrStaff(uuid);
         UserResponse user = userService.getUserByUuid(uuid);
         return ResponseEntity.ok(ApiResponse.<UserResponse>builder()
                 .success(true)
@@ -39,11 +66,39 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @Parameter(description = "User UUID") @PathVariable String uuid,
             @Valid @RequestBody UserUpdateRequest request) {
+        assertSelfOrStaff(uuid);
         UserResponse user = userService.updateUser(uuid, request);
         return ResponseEntity.ok(ApiResponse.<UserResponse>builder()
                 .success(true)
                 .data(user)
                 .message("User updated successfully")
+                .build());
+    }
+
+    @Operation(summary = "Request email change", description = "Send a verification code to the customer's NEW email address")
+    @PostMapping("/{uuid}/email-change/request")
+    public ResponseEntity<ApiResponse<Void>> requestEmailChange(
+            @Parameter(description = "User UUID") @PathVariable String uuid,
+            @Valid @RequestBody EmailChangeRequest request) {
+        assertSelfOrStaff(uuid);
+        userService.requestEmailChange(uuid, request.getNewEmail());
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true)
+                .message("Verification code sent to your new email address")
+                .build());
+    }
+
+    @Operation(summary = "Verify email change", description = "Verify the OTP sent to the new email and apply the change")
+    @PostMapping("/{uuid}/email-change/verify")
+    public ResponseEntity<ApiResponse<UserResponse>> verifyEmailChange(
+            @Parameter(description = "User UUID") @PathVariable String uuid,
+            @Valid @RequestBody EmailChangeVerifyRequest request) {
+        assertSelfOrStaff(uuid);
+        UserResponse user = userService.verifyEmailChange(uuid, request.getNewEmail(), request.getOtp());
+        return ResponseEntity.ok(ApiResponse.<UserResponse>builder()
+                .success(true)
+                .data(user)
+                .message("Email address updated successfully")
                 .build());
     }
 

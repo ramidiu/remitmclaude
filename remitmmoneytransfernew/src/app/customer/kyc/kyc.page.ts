@@ -31,6 +31,7 @@ export class KycPage implements OnInit, OnDestroy {
   personalForm!: FormGroup;
   addressForm!: FormGroup;
   fromRegistration = false;
+  reuploadRequired = false;
   submitting = false;
 
   // KYC status tracking
@@ -122,6 +123,8 @@ export class KycPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.fromRegistration = this.route.snapshot.queryParams['fromRegistration'] === 'true';
+    // Address change forced a re-upload of proof-of-address + identity documents.
+    this.reuploadRequired = this.route.snapshot.queryParams['reupload'] === 'true';
 
     const today = new Date().toISOString().split('T')[0];
     this.todayDate = today;
@@ -179,7 +182,9 @@ export class KycPage implements OnInit, OnDestroy {
   private loadExistingDocuments(userId: string): void {
     this.kycService.getDocuments(userId).subscribe({
       next: (docs: any[]) => {
-        this.existingDocuments = docs || [];
+        // Customer view shows only the newest upload per type. (The admin still sees the
+        // full Latest/Previous history in the KYC review viewer.)
+        this.existingDocuments = this.pickCustomerVisibleDocs(docs || []);
         this.loadingStatus = false;
       },
       error: () => {
@@ -193,6 +198,41 @@ export class KycPage implements OnInit, OnDestroy {
     return (type || '').replace(/_/g, ' ');
   }
 
+  /** Label including the Front/Back side for two-sided documents. */
+  getDocLabel(doc: any): string {
+    const base = this.getDocTypeLabel(doc?.documentType);
+    if (doc?.documentSide === 'FRONT') return base + ' — Front';
+    if (doc?.documentSide === 'BACK') return base + ' — Back';
+    return base;
+  }
+
+  /**
+   * Customer view: only the most recent upload per document type. If a type was re-uploaded as
+   * FRONT+BACK, show the latest Front and latest Back and hide the older single-file copies;
+   * otherwise show the single latest document of that type. This overrides older approved copies.
+   */
+  private pickCustomerVisibleDocs(all: any[]): any[] {
+    const newest = (a: any, b: any) =>
+      new Date(b.createdAt || b.uploadedAt || 0).getTime() - new Date(a.createdAt || a.uploadedAt || 0).getTime();
+    const byType: { [k: string]: any[] } = {};
+    for (const d of all) (byType[d.documentType] = byType[d.documentType] || []).push(d);
+    const result: any[] = [];
+    for (const type of Object.keys(byType)) {
+      const list = byType[type];
+      const hasSides = list.some(d => d.documentSide === 'FRONT' || d.documentSide === 'BACK');
+      if (hasSides) {
+        for (const side of ['FRONT', 'BACK']) {
+          const sideDocs = list.filter(d => d.documentSide === side).sort(newest);
+          if (sideDocs.length) result.push(sideDocs[0]);
+        }
+      } else {
+        const sorted = [...list].sort(newest);
+        if (sorted.length) result.push(sorted[0]);
+      }
+    }
+    return result;
+  }
+
   getStatusColor(status: string): string {
     switch ((status || '').toUpperCase()) {
       case 'PENDING': return 'warning';
@@ -204,7 +244,9 @@ export class KycPage implements OnInit, OnDestroy {
 
   getDocPreviewUrl(doc: any): string {
     const user = this.authService.getCurrentUser();
-    return `${environment.apiUrl}/users/${user?.sub}/kyc/documents/${doc.id}/file`;
+    const url = `${environment.apiUrl}/users/${user?.sub}/kyc/documents/${doc.id}/file`;
+    const token = localStorage.getItem('fb_access_token');
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
   }
 
   private loadDocumentTypes(): void {
@@ -453,7 +495,10 @@ export class KycPage implements OnInit, OnDestroy {
           user.sub, docTypeEnum, this.identityFrontFile,
           this.identityDocNumber || undefined,
           this.identityIssueDate || undefined,
-          this.identityExpiryDate || undefined
+          this.identityExpiryDate || undefined,
+          // Tag the side so front + back are stored as separate documents (not overwriting
+          // each other). Single-sided docs send FRONT so the primary image is unambiguous.
+          this.selectedIdentityDocType.sides === 2 ? 'FRONT' : undefined
         ).toPromise();
         uploaded++;
       } catch { failed++; }
@@ -465,7 +510,8 @@ export class KycPage implements OnInit, OnDestroy {
             user.sub, docTypeEnum, this.identityBackFile,
             this.identityDocNumber || undefined,
             this.identityIssueDate || undefined,
-            this.identityExpiryDate || undefined
+            this.identityExpiryDate || undefined,
+            'BACK'
           ).toPromise();
           uploaded++;
         } catch { failed++; }
@@ -581,7 +627,9 @@ export class KycPage implements OnInit, OnDestroy {
             this.identityFrontFile,
             this.identityDocNumber,
             this.identityIssueDate,
-            this.identityExpiryDate
+            this.identityExpiryDate,
+            // Tag the side so front + back are stored separately (they no longer overwrite each other).
+            this.selectedIdentityDocType.sides === 2 ? 'FRONT' : undefined
           ).toPromise();
           if (front?.id) uploadedDocIds.push(front.id);
 
@@ -592,7 +640,8 @@ export class KycPage implements OnInit, OnDestroy {
               this.identityBackFile,
               this.identityDocNumber,
               this.identityIssueDate,
-              this.identityExpiryDate
+              this.identityExpiryDate,
+              'BACK'
             ).toPromise();
             if (back?.id) uploadedDocIds.push(back.id);
           }

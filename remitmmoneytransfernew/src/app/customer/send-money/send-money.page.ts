@@ -11,6 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { UserService } from '../../core/services/user.service';
 import { WalletService } from '../../core/services/wallet.service';
 import { ReferralService } from '../../core/services/referral.service';
+import { AppConfigService } from '../../core/services/app-config.service';
 import { environment } from '../../../environments/environment';
 import { BeneficiaryResponse } from '../../core/models/beneficiary.model';
 import { CorridorResponse, QuoteResponse } from '../../core/models/fx.model';
@@ -156,6 +157,7 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
     private userService: UserService,
     private walletService: WalletService,
     private referralService: ReferralService,
+    private appConfig: AppConfigService,
     private route: ActivatedRoute,
     private router: Router,
     private toastCtrl: ToastController,
@@ -809,6 +811,10 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
   // --- Continue to Review ---
 
   continueToReview(): void {
+    if (!this.appConfig.transactionsEnabled) {
+      this.showToast('Sending money is temporarily unavailable. Please try again later.', 'warning');
+      return;
+    }
     this.currentStep = 'review';
     // Land the user on the payment-method section (where the actionable controls live),
     // not the top of the review summary. Users were missing that this is a review screen
@@ -965,15 +971,25 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
       bene?.accountNumber || bene?.iban || txn?.referenceNumber || ''
     );
 
-    const safeDob = this.parseDobForTrust(this.billingDob);
+    const orderRef    = this.sanitize(txn?.referenceNumber || this.createdTxnRef || '');
+    const safeDob     = this.parseDobForTrust(this.billingDob);
     const callbackUrl = `${window.location.origin}/home/trust-callback`;
 
+    // Field set + order mirror the proven Layla Trust Payments request; all values are dynamic.
     const fields: Array<[string, string]> = [
-      ['sitereference',         'test_remitm107329'],
+      ['sitereference',         'remitm107330'],
       ['stprofile',             'default'],
       ['currencyiso3a',         'GBP'],
       ['mainamount',            mainamount],
       ['version',               '2'],
+    ];
+
+    // orderreference = our transaction ref (ties the Trust payment/callback back to the txn)
+    if (orderRef) fields.push(['orderreference', orderRef]);
+    // DOB right after orderreference, only if it parsed to a valid YYYY-MM-DD
+    if (safeDob)  fields.push(['billingdob', safeDob]);
+
+    fields.push(
       ['billingfirstname',      this.sanitize(this.billingFirstName)],
       ['billinglastname',       this.sanitize(this.billingLastName)],
       ['billingcountryiso2a',   'GB'],
@@ -983,10 +999,20 @@ export class SendMoneyPage implements OnInit, OnDestroy, ViewWillEnter {
       ['ruleidentifier',        'STR-11'],
       ['successfulurlredirect', callbackUrl],
       ['declinedurlredirect',   callbackUrl],
-    ];
+    );
 
-    // Only send DOB if it parsed to a valid YYYY-MM-DD
-    if (safeDob) fields.splice(6, 0, ['billingdob', safeDob]);
+    // Billing address — each part sent only if non-empty (matches Layla). Use trim (not sanitize)
+    // so legitimate spaces in street/town/postcode are preserved.
+    ([
+      ['billingpremise',  this.billingPremise],
+      ['billingstreet',   this.billingStreet],
+      ['billingtown',     this.billingTown],
+      ['billingcounty',   this.billingCounty],
+      ['billingpostcode', this.billingPostcode],
+    ] as Array<[string, string]>).forEach(([k, v]) => {
+      const s = (v || '').trim();
+      if (s) fields.push([k, s]);
+    });
 
     if (custCountry) fields.push(['customercountryiso2a', custCountry]);
     if (custAccount) fields.push(['customeraccountnumber', custAccount],

@@ -78,15 +78,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         // Public account deletion (Google Play policy) — OTP-verified, no login
                         .requestMatchers("/api/account/public/**").permitAll()
+                        // Public customer-app configuration flags (feature toggles + timings)
+                        .requestMatchers("/api/public/**").permitAll()
                         // PayIn endpoints
                         .requestMatchers("/api/payin/**").authenticated()
-                        // Internal service-to-service endpoints
-                        .requestMatchers("/internal/**").permitAll()
+                        // Internal service-to-service endpoints — require authentication;
+                        // controllers additionally restrict these to staff via @PreAuthorize.
+                        .requestMatchers("/internal/**").authenticated()
                         // FX public endpoints
                         .requestMatchers("/api/fx/rates").permitAll()
                         .requestMatchers("/api/fx/rates/**").permitAll()
                         .requestMatchers("/api/fx/quote").permitAll()
-                        .requestMatchers("/api/fx/corridors/auto-create").permitAll()
+                        // /api/fx/corridors/auto-create is NOT public — it creates corridors.
+                        // Now authenticated + config:manage_corridors (see CorridorController).
                         .requestMatchers("/api/corridors").permitAll()
                         .requestMatchers("/api/corridors/*/delivery-methods").permitAll()
                         .requestMatchers("/api/corridors/*/limits").permitAll()
@@ -102,22 +106,22 @@ public class SecurityConfig {
                         .requestMatchers("/api/transactions/lookup/mobile-services").permitAll()
                         .requestMatchers("/api/transactions/lookup/cash-points").permitAll()
                         // User public endpoints
-                        .requestMatchers("/api/users/*").permitAll()
+                        // NOTE: GET /api/users/{uuid} is intentionally NOT public — it returns full
+                        // profile PII. It is now authenticated + ownership-checked in UserController.
                         .requestMatchers("/api/users/kyc/**").permitAll()
-                        .requestMatchers("/api/users/*/kyc/documents/*/file").permitAll()
+                        // KYC document file GET is authenticated + ownership-checked (KycController).
+                        // <img>/<iframe> previews pass the JWT via ?token= (JwtAuthenticationFilter).
                         .requestMatchers("/api/referrals/validate/**").permitAll()
-                        .requestMatchers("/api/referrals/on-completed").permitAll()
-                        .requestMatchers("/api/wallet/credit").permitAll()
-                        .requestMatchers("/api/wallet/debit").permitAll()
-                        // Notification public endpoints
-                        .requestMatchers("/api/support/attachments/*/file").permitAll()
+                        // on-completed + wallet credit/debit are NOT public. They were
+                        // service-to-service remnants with no external caller; now authenticated
+                        // (wallet credit/debit additionally require wallet:manage — see WalletController).
+                        // Support attachment file GET is authenticated + ownership-checked
+                        // (SupportTicketController); previews pass the JWT via ?token=.
                         // Swagger / actuator
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/api-docs/**").permitAll()
                         .requestMatchers("/swagger-config").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // Code added by Naresh: Phase 2 DEV/POC Kuber smoke-test endpoint (remove before production).
-                        .requestMatchers("/api/dev/kuber/**").permitAll()
                         // Trust Payments callback — called by frontend after card payment redirect
                         .requestMatchers("/api/trust-payment/**").permitAll()
                         // Fire open banking — return-from-bank update + public bank list
@@ -126,6 +130,20 @@ public class SecurityConfig {
                         // Nsano payout — inbound callback from Nsano servers (no JWT)
                         .requestMatchers("/nsano/callback").permitAll()
                         .anyRequest().authenticated()
+                )
+                .headers(headers -> headers
+                        // X-Frame-Options: DENY (Spring default) blocks the KYC document <iframe>
+                        // preview when the admin UI and API are on different origins (local :8098 →
+                        // :8097, or split prod domains). Replace the blanket DENY with a CSP
+                        // frame-ancestors allow-list so only trusted frontends can embed /file docs.
+                        // <img> previews were never affected (only iframes obey X-Frame-Options),
+                        // which is why images showed but PDFs failed with "refused to connect".
+                        .frameOptions(frame -> frame.disable())
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "frame-ancestors 'self' http://localhost:8098 http://localhost:8096 "
+                                + "http://localhost:8100 http://localhost:4200 "
+                                + "https://remitm.com https://www.remitm.com https://sendmoney.remitm.com "
+                                + "https://global.remitm.com"))
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

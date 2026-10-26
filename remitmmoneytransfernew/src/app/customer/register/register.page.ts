@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { LoadingController, ToastController } from '@ionic/angular';
 
 import { AuthService } from '../../core/services/auth.service';
+import { AppConfigService } from '../../core/services/app-config.service';
 
 interface Country {
   name: string;
@@ -60,6 +61,7 @@ export class RegisterPage implements OnInit {
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
+    private appConfig: AppConfigService,
     private router: Router,
     private loadingCtrl: LoadingController,
     private toastCtrl: ToastController
@@ -121,6 +123,10 @@ passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   }
 
   onRegister(): void {
+    if (!this.appConfig.registrationEnabled) {
+      this.showToast('New registrations are currently disabled. Please try again later.', 'warning');
+      return;
+    }
     if (this.registerForm.invalid) {
       Object.keys(this.registerForm.controls).forEach(key => {
         this.registerForm.get(key)?.markAsTouched();

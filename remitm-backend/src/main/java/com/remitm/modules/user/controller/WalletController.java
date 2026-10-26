@@ -8,6 +8,7 @@ import com.remitm.modules.auth.repository.UserRepository;
 import com.remitm.modules.user.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -49,9 +50,10 @@ public class WalletController {
     }
 
     @PostMapping("/debit")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<WalletEntity>> debit(@RequestBody Map<String, Object> body) {
         Long userId = Long.valueOf(body.get("userId").toString());
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         String description = body.getOrDefault("description", "").toString();
         String referenceId = body.getOrDefault("referenceId", "").toString();
         String referenceType = body.getOrDefault("referenceType", "").toString();
@@ -65,9 +67,10 @@ public class WalletController {
     }
 
     @PostMapping("/credit")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<WalletEntity>> credit(@RequestBody Map<String, Object> body) {
         Long userId = Long.valueOf(body.get("userId").toString());
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         String description = body.getOrDefault("description", "").toString();
         String referenceId = body.getOrDefault("referenceId", "").toString();
         String referenceType = body.getOrDefault("referenceType", "").toString();
@@ -83,6 +86,7 @@ public class WalletController {
     // ── Admin Endpoints ─────────────────────────────────────────────────
 
     @GetMapping("/admin/all")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<List<WalletEntity>>> getAllWallets() {
         List<WalletEntity> wallets = walletService.getAllWallets();
         return ResponseEntity.ok(ApiResponse.<List<WalletEntity>>builder()
@@ -93,6 +97,7 @@ public class WalletController {
     }
 
     @GetMapping("/admin/{userId}/transactions")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<List<WalletLedgerEntity>>> getAdminTransactions(
             @PathVariable Long userId) {
         List<WalletLedgerEntity> transactions = walletService.getTransactions(userId);
@@ -104,10 +109,11 @@ public class WalletController {
     }
 
     @PostMapping("/admin/{userId}/credit")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<WalletEntity>> adminCredit(
             @PathVariable Long userId,
             @RequestBody Map<String, Object> body) {
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         String description = body.getOrDefault("description", "Admin credit").toString();
 
         WalletEntity wallet = walletService.adminCredit(userId, amount, description);
@@ -119,10 +125,11 @@ public class WalletController {
     }
 
     @PostMapping("/admin/{userId}/debit")
+    @PreAuthorize("hasPermission(null, 'wallet:manage')")
     public ResponseEntity<ApiResponse<WalletEntity>> adminDebit(
             @PathVariable Long userId,
             @RequestBody Map<String, Object> body) {
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal amount = requirePositiveAmount(body);
         String description = body.getOrDefault("description", "Admin debit").toString();
 
         WalletEntity wallet = walletService.adminDebit(userId, amount, description);
@@ -134,6 +141,31 @@ public class WalletController {
     }
 
     // ── Helper ──────────────────────────────────────────────────────────
+
+    /**
+     * Validate and parse the {@code amount} field from a request body. Rejects a missing,
+     * non-numeric, zero or negative amount with HTTP 400 instead of letting a NumberFormatException
+     * or a negative-value ledger movement slip through.
+     */
+    private BigDecimal requirePositiveAmount(Map<String, Object> body) {
+        Object raw = body.get("amount");
+        if (raw == null) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "amount is required", org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(raw.toString());
+        } catch (NumberFormatException e) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "amount is not a valid number", org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+        if (amount.signum() <= 0) {
+            throw new com.remitm.common.exception.RemitmException(
+                    "amount must be greater than zero", org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+        return amount;
+    }
 
     private Long resolveUserId(String uuid) {
         return userRepository.findByUuid(uuid)

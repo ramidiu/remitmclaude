@@ -187,6 +187,9 @@
           <button class="action-btn action-btn--link" (click)="viewProfile(entry); $event.stopPropagation()" title="View Profile">
             <ion-icon name="person-outline"></ion-icon>
           </button>
+          <button class="review-btn" (click)="openReview(entry); $event.stopPropagation()" title="Open document reviewer">
+            <ion-icon name="eye-outline"></ion-icon> Review
+          </button>
           <button class="expand-btn" [class.expand-btn--open]="entry.expanded">
             <ion-icon name="chevron-down-outline"></ion-icon>
           </button>
@@ -228,60 +231,8 @@
         </div>
       </div>
 
-      <!-- Expanded Documents -->
-      <div class="kyc-card__body" *ngIf="entry.expanded">
-        <div *ngIf="entry.loadingDocs" class="docs-loading">
-          <div class="fb-skeleton fb-skeleton--text" *ngFor="let i of [1,2]"></div>
-        </div>
-
-        <div *ngIf="!entry.loadingDocs && entry.documents.length === 0" class="docs-empty">
-          No documents uploaded yet.
-        </div>
-
-        <div class="docs-list" *ngIf="!entry.loadingDocs && entry.documents.length > 0">
-          <div class="doc-row" *ngFor="let doc of entry.documents">
-            <div class="doc-row__header">
-              <span class="doc-row__type">{{ formatDocType(doc.documentType) }}</span>
-              <span class="status-badge status-badge--{{ getDocStatusClass(doc.status) }}">{{ doc.status }}</span>
-              <span class="doc-row__date">{{ doc.uploadedAt || doc.createdAt | date:'MMM d, y HH:mm' }}</span>
-            </div>
-            <div class="doc-row__details" *ngIf="doc.documentNumber || doc.issueDate || doc.expiryDate">
-              <div class="doc-detail" *ngIf="doc.documentNumber">
-                <span class="doc-detail__label">Document Number</span>
-                <span class="doc-detail__value">{{ doc.documentNumber }}</span>
-              </div>
-              <div class="doc-detail" *ngIf="doc.issueDate">
-                <span class="doc-detail__label">Issue Date</span>
-                <span class="doc-detail__value">{{ doc.issueDate | date:'MMM d, y' }}</span>
-              </div>
-              <div class="doc-detail" *ngIf="doc.expiryDate">
-                <span class="doc-detail__label">Expiry Date</span>
-                <span class="doc-detail__value">{{ doc.expiryDate | date:'MMM d, y' }}</span>
-              </div>
-            </div>
-            <!-- Open the document in a NEW BROWSER TAB. Inline rendering (and eager-loading every
-                 doc as a blob) froze the page on large files; opening a tab never touches this page. -->
-            <div class="doc-row__preview">
-              <button class="doc-open-btn" *ngIf="doc.fileUrl" (click)="openDocument(entry, doc); $event.stopPropagation()" [disabled]="doc._opening" title="Open document in a new browser tab">
-                <ion-icon name="open-outline"></ion-icon> {{ doc._opening ? 'Opening…' : 'View document' }}
-              </button>
-            </div>
-            <div class="doc-row__actions">
-              <ng-container *ngIf="doc.status === 'PENDING'">
-                <button class="action-btn action-btn--success" (click)="approveDoc(entry, doc); $event.stopPropagation()">
-                  <ion-icon name="checkmark-outline"></ion-icon> Approve
-                </button>
-                <button class="action-btn action-btn--danger" (click)="rejectDoc(entry, doc); $event.stopPropagation()">
-                  <ion-icon name="close-outline"></ion-icon> Reject
-                </button>
-              </ng-container>
-              <span class="doc-row__rejection" *ngIf="doc.status === 'REJECTED' && doc.rejectionReason">
-                Reason: {{ doc.rejectionReason }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Documents are reviewed via the "Review" button (full-screen viewer). The inline
+           document list was removed — the Review button is the single entry point. -->
     </div>
   </div>
 
@@ -297,4 +248,80 @@
   </div>
 
   </div><!-- end *ngIf USERS -->
+</div>
+
+<!-- ═══════════ Focused document reviewer (ForexBridge-style) ═══════════ -->
+<div class="kyc-viewer-overlay" *ngIf="reviewEntry">
+  <div class="kyc-viewer">
+    <div class="kyc-viewer__head">
+      <button class="kyc-viewer__back" (click)="closeReview()" title="Back"><ion-icon name="arrow-back-outline"></ion-icon></button>
+      <div class="kyc-viewer__title">
+        <h2>KYC Review — {{ reviewEntry.user.firstName }} {{ reviewEntry.user.lastName }}</h2>
+        <span class="kyc-viewer__email">{{ reviewEntry.user.email }}</span>
+      </div>
+      <span class="status-badge status-badge--{{ getStatusClass(reviewEntry.kycStatus?.overallStatus, reviewEntry) }}">{{ getStatusLabel(reviewEntry.kycStatus?.overallStatus, reviewEntry) }}</span>
+      <button class="kyc-viewer__close" (click)="closeReview()" title="Close"><ion-icon name="close-outline"></ion-icon></button>
+    </div>
+
+    <div class="kyc-viewer__tabs" *ngIf="!reviewLoadingDocs && reviewDocs.length">
+      <button class="kyc-doc-tab" *ngFor="let d of reviewDocs" [class.kyc-doc-tab--active]="d === activeReviewDoc" (click)="selectReviewDoc(d)">
+        {{ formatDocType(d.documentType) }}{{ d.documentSide === 'FRONT' ? ' — Front' : d.documentSide === 'BACK' ? ' — Back' : '' }}
+        <span *ngIf="d._versionTag" class="version-badge version-badge--{{ d._versionTag === 'LATEST' ? 'latest' : 'previous' }}">{{ d._versionTag }}</span>
+        <span class="kyc-doc-tab__badge kyc-doc-tab__badge--{{ getDocStatusClass(d.status) }}">{{ d.status }}</span>
+      </button>
+    </div>
+    <div class="kyc-viewer__note" *ngIf="reviewLoadingDocs">Loading documents…</div>
+    <div class="kyc-viewer__note" *ngIf="!reviewLoadingDocs && reviewDocs.length === 0">No documents uploaded.</div>
+
+    <div class="kyc-viewer__body" *ngIf="activeReviewDoc">
+      <div class="kyc-doc-stage">
+        <div class="kyc-doc-toolbar">
+          <button (click)="zoomOut()" title="Zoom out"><ion-icon name="remove-outline"></ion-icon></button>
+          <span class="kyc-doc-toolbar__pct">{{ (zoom * 100) | number:'1.0-0' }}%</span>
+          <button (click)="zoomIn()" title="Zoom in"><ion-icon name="add-outline"></ion-icon></button>
+          <button (click)="zoomReset()" title="Reset"><ion-icon name="scan-outline"></ion-icon></button>
+          <button (click)="rotateDoc()" title="Rotate"><ion-icon name="refresh-outline"></ion-icon></button>
+          <button (click)="downloadDoc()" title="Download"><ion-icon name="download-outline"></ion-icon></button>
+          <button (click)="openInNewTab()" title="Open in new tab"><ion-icon name="expand-outline"></ion-icon></button>
+        </div>
+        <div class="kyc-doc-canvas">
+          <img *ngIf="activeReviewDoc.isImage && activeReviewDoc.viewUrl"
+               [src]="activeReviewDoc.viewUrl"
+               [style.transform]="'scale(' + zoom + ') rotate(' + rotation + 'deg)'" alt="KYC document"
+               (error)="activeReviewDoc.isImage = false" />
+          <iframe *ngIf="activeReviewDoc.isPdf && activeReviewDoc.safeUrl" [src]="activeReviewDoc.safeUrl" title="KYC document"></iframe>
+          <div *ngIf="!activeReviewDoc.isImage && !activeReviewDoc.isPdf" class="kyc-doc-canvas__note">
+            Preview unavailable — <a (click)="openInNewTab()">open in a new tab</a>.
+          </div>
+        </div>
+      </div>
+
+      <div class="kyc-doc-details">
+        <h3>{{ formatDocType(activeReviewDoc.documentType) }}{{ activeReviewDoc.documentSide === 'FRONT' ? ' — Front' : activeReviewDoc.documentSide === 'BACK' ? ' — Back' : '' }}
+          <span *ngIf="activeReviewDoc._versionTag" class="version-badge version-badge--{{ activeReviewDoc._versionTag === 'LATEST' ? 'latest' : 'previous' }}">{{ activeReviewDoc._versionTag }}</span>
+          <span class="status-badge status-badge--{{ getDocStatusClass(activeReviewDoc.status) }}">{{ activeReviewDoc.status }}</span>
+        </h3>
+        <div class="kyc-detail-row" *ngIf="reviewEntry.user.addressLine1">
+          <span>Address</span><b>{{ reviewEntry.user.addressLine1 }}<ng-container *ngIf="reviewEntry.user.city">, {{ reviewEntry.user.city }}</ng-container><ng-container *ngIf="reviewEntry.user.postcode">, {{ reviewEntry.user.postcode }}</ng-container><ng-container *ngIf="reviewEntry.user.country">, {{ reviewEntry.user.country }}</ng-container></b>
+        </div>
+        <div class="kyc-detail-row"><span>Document</span><b>{{ formatDocType(activeReviewDoc.documentType) }}</b></div>
+        <div class="kyc-detail-row"><span>Status</span><b>{{ activeReviewDoc.status }}</b></div>
+        <div class="kyc-detail-row" *ngIf="activeReviewDoc.documentNumber"><span>Doc Number</span><b>{{ activeReviewDoc.documentNumber }}</b></div>
+        <div class="kyc-detail-row" *ngIf="activeReviewDoc.uploadedAt"><span>Uploaded</span><b>{{ activeReviewDoc.uploadedAt | date:'yyyy-MM-dd HH:mm:ss' }}</b></div>
+        <div class="kyc-detail-row" *ngIf="activeReviewDoc.expiryDate"><span>Expiry</span><b>{{ activeReviewDoc.expiryDate | date:'yyyy-MM-dd' }}</b></div>
+        <div class="kyc-detail-row kyc-detail-row--reason" *ngIf="activeReviewDoc.status === 'REJECTED' && activeReviewDoc.rejectionReason">
+          <span>Reason</span><b>{{ activeReviewDoc.rejectionReason }}</b>
+        </div>
+        <div class="kyc-doc-actions" *ngIf="activeReviewDoc.status === 'PENDING'">
+          <button class="action-btn action-btn--success" (click)="approveReviewDoc()" [disabled]="activeReviewDoc._busy">
+            <ion-icon name="checkmark-outline"></ion-icon> {{ activeReviewDoc._busy ? '…' : 'Approve' }}
+          </button>
+          <button class="action-btn action-btn--danger" (click)="rejectReviewDoc()" [disabled]="activeReviewDoc._busy">
+            <ion-icon name="close-outline"></ion-icon> {{ activeReviewDoc._busy ? '…' : 'Reject' }}
+          </button>
+        </div>
+        <div class="kyc-doc-actions__done" *ngIf="activeReviewDoc.status !== 'PENDING'">Already {{ (activeReviewDoc.status || '') | lowercase }}.</div>
+      </div>
+    </div>
+  </div>
 </div>

@@ -20,4 +20,8 @@ public class KycStatusResponse {
     private List<KycDocumentResponse> documents;
     private List<String> verifications;
     private List<String> nextTierRequirements;
+    // True when an address change requires the customer to re-upload address + identity documents.
+    // The frontend uses this to force the re-upload on every login until it is cleared.
+    private Boolean reuploadRequired;
+    private String reuploadReason;
 }

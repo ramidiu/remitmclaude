@@ -22,10 +22,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -58,13 +60,59 @@ public class ZeepayService {
 
     private static final DateTimeFormatter NONCE = DateTimeFormatter.ofPattern("yyMMddHHmmss");
 
+    /** Fail fast if Zeepay never completes the TCP handshake. */
+    private static final int CONNECT_TIMEOUT_MS = 8_000;
+    /** Fail fast if Zeepay accepts the connection but never sends a response (the observed hang). */
+    private static final int READ_TIMEOUT_MS = 12_000;
+    /** Total attempts for idempotent read/verify calls (1 original + retries). Initiate is NEVER retried. */
+    private static final int VERIFY_MAX_ATTEMPTS = 2;
+    /** Small backoff between retries. */
+    private static final long RETRY_BACKOFF_MS = 400L;
+
     private final ZeepayConfig config;
     private final ZeePayRepository zeePayRepository;
     private final TransactionRepository transactionRepository;
     private final BeneficiaryRepository beneficiaryRepository;
     private final UserRepository userRepository;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = buildRestTemplate();
+
+    /** RestTemplate with connect/read timeouts so a hung Zeepay endpoint can't block the caller
+     *  (and the frontend proxy) indefinitely — previously an unbounded {@code new RestTemplate()}. */
+    private static RestTemplate buildRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        factory.setReadTimeout(READ_TIMEOUT_MS);
+        return new RestTemplate(factory);
+    }
+
+    /**
+     * Exchange with a small retry for transient connectivity failures (connect/read timeouts,
+     * socket resets). ONLY safe for idempotent calls — verification and bank-list lookups.
+     * NEVER use for initiate/disburse: retrying a payout POST risks a double disbursement.
+     */
+    private <T> ResponseEntity<T> exchangeWithRetry(String url, HttpMethod method,
+                                                    HttpEntity<?> entity, Class<T> responseType, String label) {
+        ResourceAccessException last = null;
+        for (int attempt = 1; attempt <= VERIFY_MAX_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (ResourceAccessException ex) {
+                last = ex;
+                log.warn("Zeepay {} attempt {}/{} failed ({}){}", label, attempt, VERIFY_MAX_ATTEMPTS,
+                        ex.getMessage(), attempt < VERIFY_MAX_ATTEMPTS ? " — retrying" : "");
+                if (attempt < VERIFY_MAX_ATTEMPTS) {
+                    try {
+                        Thread.sleep(RETRY_BACKOFF_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        throw last;
+    }
 
     // ------------------------------------------------------------------
     // Initiate
@@ -391,9 +439,9 @@ public class ZeepayService {
         }
         try {
             HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(form, multipartHeaders());
-            ResponseEntity<String> resp = restTemplate.exchange(
+            ResponseEntity<String> resp = exchangeWithRetry(
                     config.getUrl() + "api/payouts/account-verification",
-                    HttpMethod.POST, entity, String.class);
+                    HttpMethod.POST, entity, String.class, "account-verification(" + serviceType + ")");
             return resp.getBody();
         } catch (Exception ex) {
             log.error("Zeepay recipient validation failed (serviceType={})", serviceType, ex);
@@ -405,9 +453,9 @@ public class ZeepayService {
     public boolean verifyAccount(MultiValueMap<String, String> fields) {
         try {
             HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(fields, multipartHeaders());
-            ResponseEntity<ZeepayInitiateResponse> resp = restTemplate.exchange(
+            ResponseEntity<ZeepayInitiateResponse> resp = exchangeWithRetry(
                     config.getUrl() + "api/payouts/account-verification",
-                    HttpMethod.POST, entity, ZeepayInitiateResponse.class);
+                    HttpMethod.POST, entity, ZeepayInitiateResponse.class, "verifyAccount");
             ZeepayInitiateResponse body = resp.getBody();
             return body != null && ACCOUNT_VERIFY_SUCCESS_CODE.equals(body.getCode());
         } catch (Exception ex) {
@@ -420,9 +468,9 @@ public class ZeepayService {
     public String listBanks(String countryIso) {
         try {
             HttpEntity<Void> entity = new HttpEntity<>(jsonHeaders());
-            ResponseEntity<String> resp = restTemplate.exchange(
+            ResponseEntity<String> resp = exchangeWithRetry(
                     config.getUrl() + "api/payouts/banks/" + countryIso,
-                    HttpMethod.GET, entity, String.class);
+                    HttpMethod.GET, entity, String.class, "banks(" + countryIso + ")");
             return resp.getBody();
         } catch (Exception ex) {
             log.error("Zeepay bank list failed for iso={}", countryIso, ex);

@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChildren, QueryList, ElementRef } fro
 import { ActivatedRoute, Router } from '@angular/router';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { AuthService } from '../../core/services/auth.service';
+import { AppConfigService } from '../../core/services/app-config.service';
 
 @Component({
   selector: 'app-otp-verify',
@@ -16,8 +17,9 @@ export class OtpVerifyPage implements OnInit, OnDestroy {
   otpDigits: string[] = ['', '', '', '', '', ''];
   currentYear = new Date().getFullYear();
 
-  timerSeconds = 300; // 5 minutes
+  timerSeconds = 300; // overwritten from server OTP config (System Controls: OTP_TTL_MINUTES)
   timerDisplay = '5:00';
+  otpTtlSeconds = 300; // server-driven OTP lifetime
   timerInterval: any;
 
   resendCooldown = 0;
@@ -29,6 +31,7 @@ export class OtpVerifyPage implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private authService: AuthService,
+    private appConfig: AppConfigService,
     private loadingCtrl: LoadingController,
     private toastCtrl: ToastController
   ) {}
@@ -42,6 +45,10 @@ export class OtpVerifyPage implements OnInit, OnDestroy {
       return;
     }
 
+    // OTP lifetime comes from the app-config loaded at startup (System Controls: OTP_TTL_MINUTES),
+    // so the countdown matches the admin setting instead of a hardcoded value.
+    this.otpTtlSeconds = this.appConfig.otpTtlSeconds || 600;
+    this.timerSeconds = this.otpTtlSeconds;
     this.startTimer();
   }
 
@@ -160,8 +167,8 @@ export class OtpVerifyPage implements OnInit, OnDestroy {
       next: () => {
         this.showToast('A new verification code has been sent to your email.', 'success');
         this.startResendCooldown();
-        // Reset the expiry timer
-        this.timerSeconds = 300;
+        // Reset the expiry timer to the server-driven OTP lifetime
+        this.timerSeconds = this.otpTtlSeconds;
         this.startTimer();
       },
       error: (error) => {

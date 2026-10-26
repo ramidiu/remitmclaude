@@ -1,0 +1,14 @@
+-- Security System Controls wired to live logic.
+--
+-- AuthService now reads the login-lockout limits, and OtpService the OTP lifetime, and the
+-- staff-MFA switch, from system_config at runtime (falling back to the application.yml /
+-- @Value defaults when a row is absent). Keys now driving behavior:
+--   security.max_login_attempts        -> AuthService (account lockout threshold)
+--   security.lockout_duration_minutes  -> AuthService (lockout window)
+--   security.mfa.enforce_staff         -> AuthService (force MFA for staff logins)
+--   OTP_TTL_MINUTES                    -> OtpService  (OTP lifetime)
+--
+-- Remove the deprecated legacy UPPER_SNAKE duplicates of the two lockout controls (seeded by
+-- V103, superseded by the dot.case keys) so the System Controls UI shows one canonical toggle
+-- per setting instead of a dead duplicate. These legacy keys were never read by any code.
+DELETE FROM system_config WHERE config_key IN ('MAX_LOGIN_ATTEMPTS', 'LOCKOUT_DURATION_MINUTES');

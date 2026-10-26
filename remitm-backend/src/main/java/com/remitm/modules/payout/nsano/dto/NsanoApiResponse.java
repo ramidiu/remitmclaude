@@ -1,6 +1,7 @@
 package com.remitm.modules.payout.nsano.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
 
 /**
@@ -13,6 +14,8 @@ public class NsanoApiResponse {
 
     private String code;
     private String msg;
+
+    @JsonDeserialize(using = NsanoDataDeserializer.class)
     private NsanoData data;
 
     @Data

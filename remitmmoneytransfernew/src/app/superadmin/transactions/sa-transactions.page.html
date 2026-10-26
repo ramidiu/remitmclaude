@@ -181,7 +181,7 @@
                   <ion-icon name="person-outline"></ion-icon>
                   Details
                 </button>
-                <button *ngIf="(txn.status === 'PENDING' || txn.status === 'CREATED') && (!txn.payinPartnerId || txn.payinPartnerActive === false)"
+                <button *ngIf="txn.status === 'PENDING' || txn.status === 'CREATED'"
                   class="action-btn action-btn--success" (click)="markFundsReceived(txn)">
                   <ion-icon name="checkmark-circle-outline"></ion-icon>
                   Received

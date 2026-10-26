@@ -42,6 +42,16 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
     });
     const sorted = [...this.displayDocuments].sort((a: any, b: any) =>
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    // Tag LATEST / PREVIOUS per type, only when a type has more than one document
+    // (a verified copy superseded by a re-upload). Lone documents get no tag.
+    const vkey = (d: any) => (d as any).documentType + '|' + ((d as any).documentSide || '');
+    const countByType: { [k: string]: number } = {};
+    for (const d of sorted) countByType[vkey(d)] = (countByType[vkey(d)] || 0) + 1;
+    for (const d of sorted) {
+      (d as any)._versionTag = (countByType[vkey(d)] > 1)
+        ? ((d as any).latest === true ? 'LATEST' : 'PREVIOUS')
+        : '';
+    }
     this.displayDocSections = [
       { key: 'pending',  title: 'Awaiting Review',     docs: sorted.filter(d => d.status === 'PENDING') },
       { key: 'approved', title: 'Previously Approved',  docs: sorted.filter(d => d.status === 'APPROVED') },
@@ -126,6 +136,13 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
   editForm!: FormGroup;
 
   private blobUrls: string[] = [];
+
+  // Full-screen KYC document viewer (opened by the single "Open documents" button).
+  reviewOpen = false;
+  reviewDocs: any[] = [];
+  activeReviewDoc: any = null;
+  reviewZoom = 1;
+  reviewRotation = 0;
 
   constructor(
     private route: ActivatedRoute,
@@ -303,7 +320,7 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
             this.kycService.reviewDocument(this.uuid, doc.id, { status: KycDocumentStatus.APPROVED }).subscribe({
               next: () => {
                 this.showToast('Document approved.', 'success');
-                this.kycService.getDocuments(this.uuid).subscribe(docs => this.setDocuments(docs));
+                this.kycService.getDocuments(this.uuid).subscribe(docs => { this.setDocuments(docs); if (this.reviewOpen) this.buildReviewDocs(); });
                 this.kycService.getStatus(this.uuid).subscribe(s => this.kycStatus = s);
               },
               error: (err) => this.showToast(err.error?.message || 'Failed to approve document.', 'danger')
@@ -333,7 +350,7 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
             }).subscribe({
               next: () => {
                 this.showToast('Document rejected.', 'warning');
-                this.kycService.getDocuments(this.uuid).subscribe(docs => this.setDocuments(docs));
+                this.kycService.getDocuments(this.uuid).subscribe(docs => { this.setDocuments(docs); if (this.reviewOpen) this.buildReviewDocs(); });
                 this.kycService.getStatus(this.uuid).subscribe(s => this.kycStatus = s);
               },
               error: (err) => this.showToast(err.error?.message || 'Failed to reject document.', 'danger')
@@ -390,6 +407,73 @@ export class SAUserProfilePage implements OnInit, OnDestroy {
     if (s === 'APPROVED') return 'success';
     if (s === 'REJECTED') return 'danger';
     return 'medium';
+  }
+
+  // ── Full-screen KYC document viewer ──────────────────────────────────────────
+  openDocuments(): void {
+    this.buildReviewDocs();
+    this.reviewOpen = true;
+  }
+
+  closeReview(): void {
+    this.reviewOpen = false;
+    this.activeReviewDoc = null;
+    this.reviewDocs = [];
+  }
+
+  /** Latest document per type+side (Front + Back shown separately), tagged Latest/Previous. */
+  buildReviewDocs(): void {
+    const real = this.displayDocuments || [];
+    const byKey = new Map<string, any>();
+    for (const d of real) {
+      const k = String((d as any).documentType) + '|' + ((d as any).documentSide || '');
+      const cur = byKey.get(k);
+      const dt = new Date((d as any).createdAt || 0).getTime();
+      if (!cur || (d as any).latest || dt > new Date(cur.createdAt || 0).getTime()) byKey.set(k, d);
+    }
+    const docs = Array.from(byKey.values());
+    this.tagReviewDocVersions(docs);
+    this.reviewDocs = docs;
+    if (docs.length) this.selectReviewDoc(docs[0]);
+    else this.activeReviewDoc = null;
+  }
+
+  private tagReviewDocVersions(docs: any[]): void {
+    const t = (d: any) => new Date(d.createdAt || 0).getTime();
+    const byType: { [k: string]: any[] } = {};
+    for (const d of docs) (byType[d.documentType] = byType[d.documentType] || []).push(d);
+    for (const type of Object.keys(byType)) {
+      const list = byType[type];
+      if (list.length <= 1) { list.forEach(d => (d as any)._versionTag = ''); continue; }
+      const max = Math.max(...list.map(t));
+      for (const d of list) (d as any)._versionTag = (max - t(d) <= 120000) ? 'LATEST' : 'PREVIOUS';
+    }
+  }
+
+  selectReviewDoc(doc: any): void {
+    this.activeReviewDoc = doc;
+    this.reviewZoom = 1; this.reviewRotation = 0;
+    if (!doc.viewUrl) {
+      const url = this.kycService.getDocumentFileUrl(this.uuid, doc.id);
+      const ext = (doc.filePath || doc.fileUrl || '').toLowerCase();
+      doc.isPdf = ext.endsWith('.pdf');
+      doc.isImage = !doc.isPdf;
+      doc.viewUrl = url;
+      doc.safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url + '#toolbar=1');
+    }
+  }
+
+  reviewZoomIn(): void { this.reviewZoom = Math.min(this.reviewZoom + 0.25, 4); }
+  reviewZoomOut(): void { this.reviewZoom = Math.max(this.reviewZoom - 0.25, 0.25); }
+  reviewZoomReset(): void { this.reviewZoom = 1; this.reviewRotation = 0; }
+  reviewRotate(): void { this.reviewRotation = (this.reviewRotation + 90) % 360; }
+  reviewOpenInNewTab(): void { if (this.activeReviewDoc?.viewUrl) window.open(this.activeReviewDoc.viewUrl, '_blank'); }
+  reviewDownload(): void {
+    if (!this.activeReviewDoc?.viewUrl) return;
+    const a = document.createElement('a');
+    a.href = this.activeReviewDoc.viewUrl;
+    a.download = this.formatDocType(this.activeReviewDoc.documentType).replace(/\s+/g, '_') + (this.activeReviewDoc.isPdf ? '.pdf' : '');
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
   formatDocType(type: string): string {
@@ -457,7 +541,9 @@ onFrontFileSelected(event: Event): void {
         this.uploadFrontFile,
         docNumber,
         issueDate,
-        expiryDate
+        expiryDate,
+        // Tag the side so front + back are stored separately instead of overwriting each other.
+        this.uploadBackFile ? 'FRONT' : undefined
       ).toPromise();
 
       if (this.uploadBackFile) {
@@ -465,9 +551,10 @@ onFrontFileSelected(event: Event): void {
           this.uuid,
           this.uploadDocType,
           this.uploadBackFile,
-          docNumber ? docNumber + ' (back)' : undefined,
+          docNumber,
           undefined,
-          undefined
+          undefined,
+          'BACK'
         ).toPromise();
       }
 

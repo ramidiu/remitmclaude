@@ -18,6 +18,8 @@ public class KycDocumentResponse {
 
     private Long id;
     private KycDocumentType documentType;
+    // "FRONT" / "BACK" for two-sided documents; null for single-file documents.
+    private String documentSide;
     private String documentNumber;
     private String filePath;
     private KycDocumentStatus status;

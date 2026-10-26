@@ -59,7 +59,8 @@ services:
       - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER:-}
       - FRONTEND_URL=${FRONTEND_URL:-http://68.169.59.140:8096}
       - BRAND_NAME=Remitm Money Transfer
-      - BRAND_SUPPORT_EMAIL=support@remitm.com
+      - BRAND_SUPPORT_EMAIL=info@remitm.com
+      - BRAND_ADDRESS=20 Kirkdale Road, London, E11 1HP, United Kingdom
       - KUBER_ENABLED=${KUBER_ENABLED:-false}
       - REMIT_ONE_ENABLED=true
       - REMIT_ONE_USERNAME=Abdulazim.mohammed2817

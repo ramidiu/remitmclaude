@@ -7,6 +7,7 @@ import com.remitm.modules.payout.nsano.service.NsanoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -44,6 +45,7 @@ public class NsanoController {
 
     /** Admin-triggered payout. */
     @PostMapping("/initiate")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<NsanoApiResponse> initiate(@RequestBody NsanoInitiateRequest request) {
         try {
             return ResponseEntity.ok(nsanoService.initiate(request));
@@ -62,6 +64,7 @@ public class NsanoController {
      * Used by the payout-partner portal's "Pay via Nsano" action.
      */
     @PostMapping("/disburse/{referenceNumber}")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<NsanoApiResponse> disburse(@PathVariable String referenceNumber) {
         try {
             return ResponseEntity.ok(nsanoService.disburse(referenceNumber));
@@ -76,6 +79,7 @@ public class NsanoController {
 
     /** Current persisted status for a transaction reference. */
     @PostMapping("/status")
+    @PreAuthorize("hasPermission(null, 'payout:mark_paid')")
     public ResponseEntity<Map<String, Object>> status(@RequestBody NsanoStatusRequest request) {
         try {
             return ResponseEntity.ok(nsanoService.currentStatus(request.getReferenceNumber()));

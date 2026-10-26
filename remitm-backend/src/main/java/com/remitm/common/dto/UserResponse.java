@@ -36,6 +36,9 @@ public class UserResponse {
     private String city;
     private String postcode;
     private String preferredLanguage;
+    // True when the customer must re-upload address + identity documents after an address change.
+    private Boolean kycReuploadRequired;
+    private String kycReuploadReason;
     private Boolean mfaEnabled;
     private java.util.List<String> roles;
     private LocalDateTime createdAt;

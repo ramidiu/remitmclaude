@@ -255,11 +255,11 @@ function drawParties(doc: any, profile: UserResponse | null): void {
 
   const fromLines: string[] = [
     'Remitm Money Transfer Ltd.',
-    '193 Seven Sisters Road',
-    'Finsbury Park, London, N4 3NG',
+    '20 Kirkdale Road',
+    'London, E11 1HP',
     'United Kingdom'
   ];
-  const fromEmail = 'support@remitm.com';
+  const fromEmail = 'info@remitm.com';
   const fromPhone = '+44 (0) 203 000 0000';
 
   // Name — bold

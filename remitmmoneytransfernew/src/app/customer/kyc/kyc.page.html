@@ -9,6 +9,15 @@
       <p class="kyc-header__subtitle">{{ 'KYC.SUBTITLE' | translate }}</p>
     </div>
 
+    <!-- Address-change re-upload banner: forced until both docs are re-submitted -->
+    <div class="kyc-card kyc-reupload-banner" *ngIf="reuploadRequired">
+      <ion-icon name="warning-outline"></ion-icon>
+      <div>
+        <h3>{{ 'KYC.REUPLOAD_TITLE' | translate }}</h3>
+        <p>{{ 'KYC.REUPLOAD_DESC' | translate }}</p>
+      </div>
+    </div>
+
     <!-- Loading State -->
     <div class="kyc-card" *ngIf="loadingStatus">
       <div class="kyc-loading">
@@ -55,7 +64,7 @@
           <div class="kyc-doc-card__header">
             <div class="kyc-doc-card__type">
               <ion-icon name="document-text-outline"></ion-icon>
-              <span>{{ getDocTypeLabel(doc.documentType) }}</span>
+              <span>{{ getDocLabel(doc) }}</span>
             </div>
             <span class="kyc-doc-status kyc-doc-status--{{ getStatusColor(doc.status) }}">
               {{ doc.status }}

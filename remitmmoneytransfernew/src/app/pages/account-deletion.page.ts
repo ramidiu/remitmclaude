@@ -75,7 +75,7 @@ import { environment } from '../../environments/environment';
       <h2>Processing Time</h2>
       <p>Deletion requests are normally processed within 30 days.</p>
       <h2>Need Help?</h2>
-      <p>For assistance contact <a href="mailto:support@remitm.com">support@remitm.com</a>.
+      <p>For assistance contact <a href="mailto:info@remitm.com">info@remitm.com</a>.
          See also our <a href="/privacy-policy">Privacy Policy</a>.</p>
     </div>
   </div></ion-content>`,

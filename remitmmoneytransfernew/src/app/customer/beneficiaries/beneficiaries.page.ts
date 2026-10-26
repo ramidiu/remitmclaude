@@ -8,6 +8,7 @@ import { BeneficiaryService } from '../../core/services/beneficiary.service';
 import { ConfigService } from '../../core/services/config.service';
 import { FxService } from '../../core/services/fx.service';
 import { AuthService } from '../../core/services/auth.service';
+import { AppConfigService } from '../../core/services/app-config.service';
 import { AddressDetail } from '../../core/services/address.service';
 import { BeneficiaryResponse } from '../../core/models/beneficiary.model';
 
@@ -66,9 +67,18 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
   // Dynamic delivery methods based on selected country
   availableDeliveryMethods: { value: string; label: string }[] = [];
 
+  // Minimum digits before the debounced auto name-check fires — avoids validating a
+  // half-typed number (which returns a false "not found"/error while the user is still typing).
+  private readonly MIN_WALLET_DIGITS = 9;   // Ghana MSISDN is 9–10 digits (0XXXXXXXXX)
+  private readonly MIN_ACCOUNT_DIGITS = 8;   // most bank accounts are ≥ 8 digits
+
   // Mobile wallets for selected country
   mobileWallets: { serviceName: string; isActive: boolean }[] = [];
   editMobileWallets: { serviceName: string; isActive: boolean }[] = [];
+
+  // Canonical mobile-network options for the fallback when no per-country wallet list exists —
+  // a dropdown (not free text) so the value is always a token the payout gateway accepts.
+  readonly mobileNetworkOptions = ['MTN', 'VODAFONE', 'AIRTELTIGO'];
 
   // Bank name lists for dropdowns
   bankNames: string[] = [];
@@ -77,6 +87,10 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
   // used to send the correct code when validating a bank account.
   bankCodeByName: { [name: string]: string } = {};
   editBankCodeByName: { [name: string]: string } = {};
+  // Countries whose bank list is pulled LIVE from Zeepay (ISO2 -> ISO3), exactly like
+  // the old codebase's getZeePayBanksList. The same live list feeds both Zeepay and
+  // Nsano payouts (the returned `code` is the routing/destinationHouse code).
+  private readonly ZEEPAY_BANK_ISO3: { [iso2: string]: string } = { GH: 'GHA', NG: 'NGA' };
 
   // Edit-form recipient verification (mirrors the add flow so the verified name locks on edit too).
   editVerifying = false;
@@ -129,6 +143,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     private configService: ConfigService,
     private fxService: FxService,
     private authService: AuthService,
+    private appConfig: AppConfigService,
     private router: Router,
     private route: ActivatedRoute,
     private alertCtrl: AlertController,
@@ -193,15 +208,12 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         if (!country) return;
         // Resolve the payout gateway for this corridor+method so the form renders the right fields.
         this.loadRoute(country, method);
+        // Load the bank dropdown + name→code map. For Ghana/Nigeria this pulls the LIVE
+        // Zeepay bank list (shared by both Zeepay and Nsano); other countries use the local
+        // bank_database. The code is what we send as routing_number / destinationHouse.
         if (method === 'BANK_DEPOSIT' && this.bankNames.length === 0) {
-          this.configService.getBankNames(country).pipe(takeUntil(this.destroy$)).subscribe({
-            next: (res: any) => { this.bankNames = res?.data || res || []; },
-            error: () => {}
-          });
+          this.loadBanks(country);
         }
-        // For code-aware corridors (Ghana → Nsano) also load the bank CODES so we can send
-        // the correct destinationHouse (e.g. "NIB") to the name-check, not the display name.
-        if (method === 'BANK_DEPOSIT') this.loadBankCodes(country);
         if (method === 'MOBILE_WALLET' && this.mobileWallets.length === 0) {
           const iso2 = country.length === 3 ? (this.iso3ToIso2[country] || country) : country;
           this.configService.getMobileServices(iso2).pipe(takeUntil(this.destroy$)).subscribe({
@@ -368,10 +380,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
       error: () => { this.loadDeliveryMethods(receiveCurrency); }
     });
 
-    this.configService.getBankNames(iso2).pipe(takeUntil(this.destroy$)).subscribe({
-      next: (res: any) => { this.bankNames = res?.data || res || []; },
-      error: () => { this.bankNames = []; }
-    });
+    this.loadBanks(iso2);
 
     this.configService.getMobileServices(iso2).pipe(takeUntil(this.destroy$)).subscribe({
       next: (wallets: any) => {
@@ -433,10 +442,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         this.bankCodeFormat = '';
       }
     });
-    this.configService.getBankNames(countryCode).pipe(takeUntil(this.destroy$)).subscribe({
-      next: (res: any) => { this.bankNames = res?.data || res || []; },
-      error: () => { this.bankNames = []; }
-    });
+    this.loadBanks(countryCode);
     this.configService.getCashPoints(countryCode).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
         const data: any[] = res?.data || res || [];
@@ -622,10 +628,10 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     if (method === 'MOBILE_WALLET') {
       bankOrProvider = f.mobileProvider || '';                 // mobile network (mno)
       accountNumber = (f.mobileNumber || '').toString();
-      if (!bankOrProvider || accountNumber.length < 6) return;
+      if (!bankOrProvider || accountNumber.length < this.MIN_WALLET_DIGITS) return;
     } else if (method === 'BANK_DEPOSIT') {
       accountNumber = (f.accountNumber || '').toString();
-      if (accountNumber.length < 4) return;
+      if (accountNumber.length < this.MIN_ACCOUNT_DIGITS) return;
       const bankName = f.bankName || '';
       bankOrProvider = this.bankCodeByName[bankName] || f.swiftBic || bankName; // bank code (Nsano)
       routingNumber = (f.sortCode || '').toString();                            // routing (Zeepay)
@@ -671,6 +677,49 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         const map: { [name: string]: string } = {};
         banks.forEach(b => { if (b?.bankName && b?.bankIdentifier) map[b.bankName] = b.bankIdentifier; });
         this.bankCodeByName = map;
+      },
+      error: () => {}
+    });
+  }
+
+  /**
+   * Load the bank dropdown names + name→code map for a country. For Zeepay-served
+   * corridors (Ghana/Nigeria) the list is pulled LIVE from Zeepay and used by BOTH
+   * Zeepay and Nsano payouts (like the old getZeePayBanksList — the returned `code`
+   * is the routing / destinationHouse code). Other countries fall back to the local
+   * bank_database.
+   */
+  private loadBanks(country: string, edit = false): void {
+    const iso3 = this.ZEEPAY_BANK_ISO3[(country || '').toUpperCase()];
+    if (iso3) {
+      this.configService.getZeepayBanks(iso3).pipe(takeUntil(this.destroy$)).subscribe({
+        next: (res: any) => {
+          const banks: any[] = res?.banks || res?.data?.banks || res?.data || [];
+          const names: string[] = [];
+          const map: { [name: string]: string } = {};
+          banks.forEach(b => { const n = b?.name; if (n) { names.push(n); if (b?.code != null) map[n] = String(b.code); } });
+          if (edit) { this.editBankNames = names; this.editBankCodeByName = map; }
+          else { this.bankNames = names; this.bankCodeByName = map; }
+        },
+        error: () => this.loadBanksFromDb(country, edit)
+      });
+    } else {
+      this.loadBanksFromDb(country, edit);
+    }
+  }
+
+  /** Local bank_database fallback: names + name→code map. */
+  private loadBanksFromDb(country: string, edit: boolean): void {
+    this.configService.getBankNames(country).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => { const n = res?.data || res || []; if (edit) this.editBankNames = n; else this.bankNames = n; },
+      error: () => { if (edit) this.editBankNames = []; else this.bankNames = []; }
+    });
+    this.configService.getBanksFull(country).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        const banks: any[] = res?.data || res || [];
+        const map: { [name: string]: string } = {};
+        banks.forEach(b => { if (b?.bankName && b?.bankIdentifier) map[b.bankName] = b.bankIdentifier; });
+        if (edit) this.editBankCodeByName = map; else this.bankCodeByName = map;
       },
       error: () => {}
     });
@@ -902,6 +951,10 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
   }
 
   onAddBeneficiary(): void {
+    if (!this.appConfig.beneficiaryEnabled) {
+      this.showToast('Adding recipients is temporarily unavailable. Please try again later.', 'warning');
+      return;
+    }
     this.addFormSubmitted = true;
     if (this.addForm.invalid) return;
 
@@ -1010,7 +1063,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
       this.editDialCode = this.countryDialCodes[ben.country] || '';
       this.loadEditBankConfig(ben.country);
       this.loadEditMobileWallets(ben.country);
-      this.loadEditBankCodes(ben.country);
+      this.loadBanks(ben.country, true);
       this.loadEditRoute(ben.country, ben.deliveryMethod as string);
     }
     this.showEditForm = true;
@@ -1063,10 +1116,10 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
     if (method === 'MOBILE_WALLET') {
       bankOrProvider = f.mobileProvider || '';
       accountNumber = (f.mobileNumber || '').toString();
-      if (!bankOrProvider || accountNumber.length < 6) return;
+      if (!bankOrProvider || accountNumber.length < this.MIN_WALLET_DIGITS) return;
     } else if (method === 'BANK_DEPOSIT') {
       accountNumber = (f.accountNumber || '').toString();
-      if (accountNumber.length < 4) return;
+      if (accountNumber.length < this.MIN_ACCOUNT_DIGITS) return;
       const bankName = f.bankName || '';
       bankOrProvider = this.editBankCodeByName[bankName] || f.swiftBic || bankName;
       routingNumber = (f.sortCode || '').toString();
@@ -1123,10 +1176,7 @@ export class BeneficiariesPage implements OnInit, OnDestroy {
         this.editBankCodeFormat = '';
       }
     });
-    this.configService.getBankNames(countryCode).subscribe({
-      next: (res: any) => { this.editBankNames = res?.data || res || []; },
-      error: () => { this.editBankNames = []; }
-    });
+    this.loadBanks(countryCode, true);
     this.configService.getCashPoints(countryCode).subscribe({
       next: (res: any) => {
         const data: any[] = res?.data || res || [];

@@ -188,7 +188,7 @@ public class AccountService {
                 + "legally required period in accordance with Anti-Money Laundering (AML), Know Your "
                 + "Customer (KYC), tax, and financial regulations.</p>"
                 + "<p>If you did not make this request, please contact support immediately at "
-                + "<a href=\"mailto:support@remitm.com\">support@remitm.com</a>.</p>"
+                + "<a href=\"mailto:info@remitm.com\">info@remitm.com</a>.</p>"
                 + "<p>Kind regards,<br/>Remitm Money Transfer</p>"
                 + "</div>";
     }

@@ -606,12 +606,25 @@ ion-toast:not(.fb-toast) {
 }
 
 /* ── Public info/legal pages (Privacy, Terms, About, Contact) ── */
-.info-page { max-width: 860px; margin: 0 auto; padding: 0 0 48px; color: #1f2937; }
-.info-hero { background: #003377; color: #fff; padding: 28px 20px; text-align: center; }
+.info-page { max-width: 860px; margin: 0 auto; padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 48px); color: #1f2937; }
+/* Native app: pad the hero for the status bar / notch (top) and side notches, so the
+   "Back" link + title never sit under the status bar. The blue simply extends up behind it. */
+.info-hero {
+  background: #003377; color: #fff; text-align: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 28px)
+           calc(env(safe-area-inset-right, 0px) + 20px)
+           28px
+           calc(env(safe-area-inset-left, 0px) + 20px);
+}
 .info-hero a.info-back { color: #cdd9f0; text-decoration: none; font-size: 0.85rem; display:inline-block; margin-bottom: 8px; }
 .info-hero h1 { margin: 0; font-size: 1.7rem; font-weight: 700; }
 .info-hero p { margin: 6px 0 0; color: #cdd9f0; font-size: 0.9rem; }
-.info-body { padding: 24px 20px; line-height: 1.7; font-size: 0.95rem; }
+.info-body {
+  padding: 24px calc(env(safe-area-inset-right, 0px) + 20px)
+           24px calc(env(safe-area-inset-left, 0px) + 20px);
+  line-height: 1.7; font-size: 0.95rem;
+  overflow-wrap: anywhere;   /* long URLs/registration numbers wrap instead of overflowing */
+}
 .info-body h2 { color: #003377; font-size: 1.15rem; margin: 24px 0 8px; }
 .info-body h3 { color: #003377; font-size: 1rem; margin: 16px 0 6px; }
 .info-body ul { margin: 8px 0 8px 18px; }

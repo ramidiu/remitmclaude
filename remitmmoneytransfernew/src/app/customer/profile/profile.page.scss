@@ -499,3 +499,48 @@
     white-space: nowrap;
   }
 }
+
+/* Locked (read-only) profile fields: name + date of birth cannot be edited by the customer. */
+.fb-field__lock {
+  font-size: 12px;
+  color: #9aa2ad;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.fb-input--locked {
+  background: #f4f6f8 !important;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+  border-color: #e2e6ea !important;
+}
+.edit-locked-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -4px 0 14px;
+  font-size: 12px;
+  color: #8a94a0;
+  line-height: 1.4;
+  ion-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+}
+
+/* Email row: read-only current email + inline Change button. */
+.email-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  .fb-field { flex: 1; margin-bottom: 0; }
+}
+.email-change-btn {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #003377;
+  background: #fff;
+  color: #003377;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.email-change-btn:hover { background: #f0f5ff; }

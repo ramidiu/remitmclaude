@@ -5,6 +5,7 @@ import com.remitm.modules.transaction.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -65,6 +66,7 @@ public class PayoutFacadeController {
 
     /** Generic payout — resolves the gateway from the transaction's stamped/corridor route. */
     @PostMapping("/disburse/{referenceNumber}")
+    @PreAuthorize("hasPermission(null, 'payout:dispatch')")
     public ResponseEntity<?> disburse(@PathVariable String referenceNumber) {
         TransactionEntity tx = transactionRepository.findByReferenceNumber(referenceNumber).orElse(null);
         if (tx == null) {
