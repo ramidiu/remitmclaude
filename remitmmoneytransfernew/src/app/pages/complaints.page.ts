@@ -42,7 +42,7 @@ import { Component } from '@angular/core';
       </ul>
 
       <p class="info-muted">Remitm Limited is a company registered in England &amp; Wales. Company Registration No: 07956213. Registered office: 20 Kirkdale Road, London, E11 1HP, United Kingdom.</p>
-    <p class="info-powered"><a href="https://www.remitz.co.uk/" target="_blank" rel="noopener noreferrer">Powered by Remitz</a></p>
+    <p class="info-powered">Powered by <a href="https://www.remitz.co.uk/" rel="noopener">Remitz</a></p>
     </div>
   </div></ion-content>`
 })

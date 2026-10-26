@@ -15,8 +15,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .prerender-credit { position: fixed; bottom: 0; left: 0; right: 0; padding: 8px; text-align: center; font: 12px/1.4 Inter, Arial, sans-serif; color: #9ca3af; }
+    .prerender-credit a { color: #6b7280; text-decoration: none; }
+  </style>
 </head>
 <body>
-  <app-root></app-root>
+  <app-root>
+    <footer class="prerender-credit" role="contentinfo">
+      Powered by <a href="https://www.remitz.co.uk/" rel="noopener">Remitz</a>
+    </footer>
+  </app-root>
 </body>
 </html>

@@ -33,7 +33,7 @@ import { Component } from '@angular/core';
       <h2>7. Contact</h2>
       <p>Call <a href="tel:+442085560888">020 8556 0888</a> or email <a href="mailto:info@remitm.com">info@remitm.com</a>. See also our <a href="/mobile-privacy">Mobile Privacy Policy</a>.</p>
       <p class="info-muted">Remitm Limited, registered office: 20 Kirkdale Road, London, E11 1HP, United Kingdom.</p>
-    <p class="info-powered"><a href="https://www.remitz.co.uk/" target="_blank" rel="noopener noreferrer">Powered by Remitz</a></p>
+    <p class="info-powered">Powered by <a href="https://www.remitz.co.uk/" rel="noopener">Remitz</a></p>
     </div>
   </div></ion-content>`
 })
