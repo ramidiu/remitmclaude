@@ -31,6 +31,7 @@ import { AppConfigService } from './core/services/app-config.service';
             </a>
           </div>
           <p class="maintenance-note">We apologise for the inconvenience.</p>
+          <p class="maintenance-powered">Powered by <a href="https://www.remitz.co.uk/" rel="noopener">Remitz</a></p>
         </div>
       </div>
 
@@ -81,6 +82,9 @@ import { AppConfigService } from './core/services/app-config.service';
     .maintenance-contact__item ion-icon { font-size: 16px; color: #5DBB52; }
     .maintenance-contact__item:hover { text-decoration: underline; }
     .maintenance-note { font-size: 13px; color: #888; margin: 0; }
+    .maintenance-powered { font-size: 12px; color: #aaa; margin: 12px 0 0; }
+    .maintenance-powered a { color: #888; text-decoration: none; }
+    .maintenance-powered a:hover { text-decoration: underline; }
   `]
 })
 export class AppComponent implements OnInit {
